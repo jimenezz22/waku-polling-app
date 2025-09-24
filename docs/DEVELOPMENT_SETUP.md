@@ -10,8 +10,8 @@
 
 ### 1. Create Project
 ```bash
-# Create new Vite + React project
-npm create vite@latest waku-polling-app -- --template react
+# Create new Vite + React + TypeScript project
+npm create vite@latest waku-polling-app -- --template react-ts
 
 # Navigate to project
 cd waku-polling-app
@@ -22,9 +22,19 @@ npm install
 
 ### 2. Install Waku Dependencies
 ```bash
-# Core packages only
+# Core Waku packages
 npm install @waku/sdk @waku/react protobufjs @waku/message-encryption @waku/utils
+
+# TypeScript support
+npm install --save-dev typescript @types/node
 ```
+
+**⚠️ Important:** Waku packages require React 18. If your project was created with a newer React version, downgrade to React 18:
+```bash
+npm install react@^18.2.0 react-dom@^18.2.0 @types/react@^18.2.66 @types/react-dom@^18.2.22
+```
+
+**Note:** If you encounter peer dependency conflicts during Waku installation, add `--legacy-peer-deps` flag to the install command.
 
 ## Complete package.json
 
@@ -35,8 +45,9 @@ npm install @waku/sdk @waku/react protobufjs @waku/message-encryption @waku/util
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -48,15 +59,19 @@ npm install @waku/sdk @waku/react protobufjs @waku/message-encryption @waku/util
     "protobufjs": "^7.2.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.1.1",
-    "vite": "^5.0.0"
+    "@types/node": "^24.5.2",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^5.0.3",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7"
   }
 }
 ```
 
 ## Vite Configuration
 
-### vite.config.js
+### vite.config.ts
 ```js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -89,12 +104,15 @@ waku-polling-app/
 │   ├── hooks/          # Custom hooks
 │   ├── services/       # Waku services
 │   ├── utils/          # Utilities
-│   ├── App.jsx         # Main app
+│   ├── App.tsx         # Main app
 │   ├── App.css         # Styles
-│   └── main.jsx        # Entry point
+│   ├── main.tsx        # Entry point
+│   └── vite-env.d.ts   # TypeScript declarations
 ├── index.html
 ├── package.json
-└── vite.config.js
+├── tsconfig.json       # TypeScript config
+├── tsconfig.node.json  # TypeScript config for Vite
+└── vite.config.ts
 ```
 
 ### Create Structure
@@ -103,11 +121,11 @@ waku-polling-app/
 mkdir -p src/{components,hooks,services,utils}
 
 # Create main files
-touch src/services/WakuService.js
-touch src/hooks/useWaku.js
-touch src/components/PollCreation.jsx
-touch src/components/PollList.jsx
-touch src/components/VoteInterface.jsx
+touch src/services/WakuService.ts
+touch src/hooks/useWaku.ts
+touch src/components/PollCreation.tsx
+touch src/components/PollList.tsx
+touch src/components/VoteInterface.tsx
 ```
 
 ## Basic HTML Template
@@ -123,7 +141,7 @@ touch src/components/VoteInterface.jsx
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
 ```
@@ -133,6 +151,9 @@ touch src/components/VoteInterface.jsx
 ```bash
 # Development
 npm run dev
+
+# TypeScript type checking
+npm run typecheck
 
 # Production build
 npm run build
@@ -155,4 +176,71 @@ rm -rf node_modules package-lock.json
 npm install
 ```
 
-That's it! Simple and ready to code.
+## TypeScript Configuration
+
+### tsconfig.json
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+### tsconfig.node.json
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "types": ["node"],
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+```
+
+### src/vite-env.d.ts
+```typescript
+/// <reference types="vite/client" />
+
+declare module "*.svg" {
+  const content: string;
+  export default content;
+}
+
+declare module "*.png" {
+  const content: string;
+  export default content;
+}
+
+declare module "*.jpg" {
+  const content: string;
+  export default content;
+}
+```
+
+That's it! Simple and ready to code with TypeScript support.
