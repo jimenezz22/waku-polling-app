@@ -1,0 +1,135 @@
+/**
+ * ConnectionStatus Component Styles
+ * Visual styles for Waku connection status indicator
+ */
+
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.status-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Connected state - Green */
+.status-connected {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #2d7a2d;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.status-connected .status-icon {
+  animation: pulse-slow 3s infinite;
+}
+
+/* Connecting state - Yellow/Amber */
+.status-connecting {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: #856404;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.status-connecting .status-icon {
+  animation: pulse-fast 1s infinite;
+}
+
+/* Disconnected state - Red */
+.status-disconnected {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #721c24;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.status-disconnected .status-icon {
+  animation: none;
+}
+
+.status-text {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.peer-count {
+  opacity: 0.8;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Pulse animations */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes pulse-fast {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+}
+
+/* Hover effects */
+.connection-status:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .status-connected {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+    border-color: rgba(76, 175, 80, 0.5);
+  }
+
+  .status-connecting {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+    border-color: rgba(255, 193, 7, 0.5);
+  }
+
+  .status-disconnected {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #f44336;
+    border-color: rgba(244, 67, 54, 0.5);
+  }
+
+  .connection-status:hover {
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .connection-status {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .status-icon {
+    font-size: 10px;
+  }
+
+  .peer-count {
+    display: none;
+  }
+}
