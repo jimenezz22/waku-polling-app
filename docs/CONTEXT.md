@@ -94,7 +94,7 @@ Single topics for each message type rather than per-poll topics for efficiency a
 **Storage Strategy**: Waku Store for persistence, no external database
 **Identity Management**: Waku native identity, abstracted from users
 **Message Validation**: Cryptographic signatures for vote integrity
-**UI Framework**: React with @waku/react hooks for demonstration
+**UI Framework**: React for demonstration
 **Deployment**: Static hosting possible due to serverless architecture
 
 ### Post-Demo Value

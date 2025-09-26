@@ -27,7 +27,7 @@ App.jsx
 
 ```jsx
 // App.jsx
-import { LightNodeProvider } from '@waku/react';
+// LightNodeProvider will be implemented directly with @waku/sdk
 import Header from './components/Header';
 import PollCreation from './components/PollCreation';
 import PollList from './components/PollList';
@@ -36,7 +36,8 @@ import './App.css';
 
 function App() {
   return (
-    <LightNodeProvider options={{ defaultBootstrap: true }}>
+    // LightNodeProvider will be implemented directly with @waku/sdk
+    <div>
       <div className="app">
         <Header />
         <main className="container">
@@ -45,7 +46,7 @@ function App() {
         </main>
         <Footer />
       </div>
-    </LightNodeProvider>
+    </div>
   );
 }
 
@@ -56,7 +57,7 @@ export default App;
 
 ```jsx
 // components/Header.jsx
-import { useWaku } from '@waku/react';
+// useWaku hook will be custom implementation with @waku/sdk
 import { useIdentity } from '../hooks/useIdentity';
 
 function Header() {
@@ -88,7 +89,7 @@ export default Header;
 ```jsx
 // components/PollCreation.jsx
 import { useState } from 'react';
-import { useLightPush } from '@waku/react';
+// useLightPush hook will be custom implementation with @waku/sdk
 import { useIdentity } from '../hooks/useIdentity';
 
 function PollCreation() {
@@ -385,7 +386,7 @@ export function useIdentity() {
 ```jsx
 // hooks/usePolls.js
 import { useEffect, useState } from 'react';
-import { useFilterMessages, useStoreMessages } from '@waku/react';
+// useFilterMessages and useStoreMessages hooks will be custom implementations with @waku/sdk
 import { createDecoder } from '@waku/sdk';
 
 const pollDecoder = createDecoder('/decenvote/1/polls/proto');
@@ -413,7 +414,7 @@ export function usePolls() {
 
 ```jsx
 // hooks/useVoting.js
-import { useLightPush } from '@waku/react';
+// useLightPush hook will be custom implementation with @waku/sdk
 import { createEncoder } from '@waku/sdk';
 import { useIdentity } from './useIdentity';
 

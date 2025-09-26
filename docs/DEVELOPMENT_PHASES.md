@@ -2,6 +2,8 @@
 
 This document outlines the iterative development phases for building the DecenVote decentralized polling application. Each phase focuses on core functionality while maintaining simplicity and beginner-friendliness.
 
+> **📌 Note**: This document incorporates essential improvements identified in [`DECENVOTE_ESSENTIAL_IMPROVEMENTS.md`](./DECENVOTE_ESSENTIAL_IMPROVEMENTS.md). Critical improvements are marked with **[CRITICAL]**.
+
 ## **Phase 0: Context and Understanding** 📚
 
 **Goal**: Establish complete understanding of project requirements and Waku fundamentals
@@ -28,7 +30,7 @@ This document outlines the iterative development phases for building the DecenVo
 
 ### Tasks:
 1. Initialize Vite + React + TypeScript project with proper configuration
-2. Install and configure Waku dependencies (@waku/sdk, @waku/react)
+2. Install and configure Waku dependencies (@waku/sdk)
 3. Create organized folder structure (components, hooks, services, utils)
 
 ### Required Documentation:
@@ -47,7 +49,10 @@ This document outlines the iterative development phases for building the DecenVo
 **Goal**: Establish core Waku connectivity and identity system
 
 ### Tasks:
-1. Create basic WakuService with Light Node initialization and connection logic
+1. Create basic WakuService with Light Node initialization and proper peer connection:
+   - Use `waitForRemotePeer` with all three protocols (LightPush, Filter, Store)
+   - Implement cleanup method to prevent memory leaks
+   - Add basic subscription management
 2. Implement identity system for generating and managing cryptographic keys
 3. Set up main App component with WakuProvider and basic layout structure
 
@@ -57,10 +62,11 @@ This document outlines the iterative development phases for building the DecenVo
 - 📄 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) - Application structure and component organization
 
 ### Deliverables:
-- Functional Waku Light Node connection
+- Functional Waku Light Node connection with proper peer waiting
+- Cleanup logic implemented to prevent memory leaks
 - Secure identity generation and storage system
 - Basic app structure with Waku provider integration
-- Connection status indicator
+- Visual connection status indicator (🟢 Connected, 🟡 Connecting, 🔴 Disconnected)
 
 ---
 
@@ -69,18 +75,21 @@ This document outlines the iterative development phases for building the DecenVo
 **Goal**: Implement Waku protocols for message publishing and subscription
 
 ### Tasks:
-1. Define Protobuf schemas for polls and votes, create encoders/decoders
+1. Define Protobuf schemas for polls and votes, create encoders/decoders:
+   - Add message validation to prevent crashes from invalid payloads
 2. Implement Store Protocol integration for loading historical data
-3. Implement Filter Protocol integration for real-time message subscriptions
+3. Implement Filter Protocol integration for real-time message subscriptions:
+   - Include proper subscription management to avoid duplicates
 
 ### Required Documentation:
 - 📄 [`docs/WAKU_IMPLEMENTATION_GUIDE.md`](./WAKU_IMPLEMENTATION_GUIDE.md) - Protocol implementation details
 - 📄 [`docs/REAL_TIME_SYNC.md`](./REAL_TIME_SYNC.md) - Store and Filter protocol usage patterns
 
 ### Deliverables:
-- Working message serialization/deserialization
+- Working message serialization/deserialization with validation
+- Message validation logic for all incoming payloads
 - Historical data loading capability
-- Real-time message subscription system
+- Real-time message subscription system with proper cleanup
 - Content topic configuration (`/decenvote/1/polls/proto`, `/decenvote/1/votes/proto`)
 
 ---
@@ -113,7 +122,9 @@ This document outlines the iterative development phases for building the DecenVo
 ### Tasks:
 1. Create VoteInterface component with voting buttons and Light Push integration
 2. Implement VoteResults component with real-time result calculation and visualization
-3. Add vote deduplication logic to prevent duplicate voting
+3. **[CRITICAL]** Add vote deduplication logic to ensure data integrity:
+   - Deduplicate by pollId + voterPublicKey
+   - Keep only the latest vote per user per poll
 
 ### Required Documentation:
 - 📄 [`docs/VOTING_LOGIC.md`](./VOTING_LOGIC.md) - Voting mechanics and validation rules
@@ -124,7 +135,7 @@ This document outlines the iterative development phases for building the DecenVo
 - Interactive voting interface
 - Real-time vote count updates
 - Results visualization with progress bars
-- Duplicate vote prevention system
+- **Vote deduplication system implemented (data integrity)**
 - User voting status tracking
 
 ---
@@ -178,6 +189,10 @@ src/
 - Verify Waku protocols work independently and together
 - Ensure real-time updates function properly
 - Validate error handling and edge cases
+- **Critical Tests**:
+  - Verify cleanup prevents memory leaks (open/close app multiple times)
+  - Test vote deduplication (try voting multiple times)
+  - Confirm message validation handles malformed data
 
 ### Success Criteria:
 Each phase should result in a working, demonstrable increment that builds upon previous phases while maintaining application stability and user experience.

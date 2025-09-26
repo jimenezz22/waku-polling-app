@@ -1,246 +1,272 @@
-# DecenVote Development Setup
+# Development Setup
+
+This guide provides step-by-step instructions for setting up the Waku Polling App development environment using Create React App with TypeScript and Craco.
 
 ## Prerequisites
 
-- **Node.js 18+**
-- **npm 9+**
-- **Modern browser** (Chrome, Firefox, Safari, Edge)
+- Node.js (v18 or higher)
+- npm or yarn
+- Git
 
-## Quick Start
+## Initial Setup
 
-### 1. Create Project
+### 1. Clone or Create the Project
+
+If starting from scratch:
 ```bash
-# Create new Vite + React + TypeScript project
-npm create vite@latest waku-polling-app -- --template react-ts
-
-# Navigate to project
+# Create React App with TypeScript template
+npx create-react-app waku-polling-app --template typescript
 cd waku-polling-app
+```
 
-# Install dependencies
+If cloning existing repository:
+```bash
+git clone [repository-url]
+cd waku-polling-app
 npm install
 ```
 
 ### 2. Install Waku Dependencies
 ```bash
 # Core Waku packages
-npm install @waku/sdk @waku/react protobufjs @waku/message-encryption @waku/utils
-
-# TypeScript support
-npm install --save-dev typescript @types/node
+npm install @waku/sdk protobufjs @waku/message-encryption @waku/utils
 ```
 
-**⚠️ Important:** Waku packages require React 18. If your project was created with a newer React version, downgrade to React 18:
+### 3. Install Craco and Node Polyfills
+
+Since Waku libraries require Node.js polyfills for browser compatibility, we need to configure webpack using Craco:
+
 ```bash
-npm install react@^18.2.0 react-dom@^18.2.0 @types/react@^18.2.66 @types/react-dom@^18.2.22
+# Install Craco
+npm install --save-dev @craco/craco
+
+# Install required polyfills
+npm install --save-dev assert buffer crypto-browserify https-browserify os-browserify process stream-browserify stream-http url util webpack-node-externals
 ```
 
-**Note:** If you encounter peer dependency conflicts during Waku installation, add `--legacy-peer-deps` flag to the install command.
+### 4. Configure Craco
+
+Create `craco.config.js` in the project root:
+
+```javascript
+const webpack = require('webpack');
+
+module.exports = {
+  webpack: {
+    configure: (webpackConfig) => {
+      // Add Node.js polyfills for browser
+      webpackConfig.resolve.fallback = {
+        ...webpackConfig.resolve.fallback,
+        "buffer": require.resolve("buffer"),
+        "crypto": require.resolve("crypto-browserify"),
+        "stream": require.resolve("stream-browserify"),
+        "assert": require.resolve("assert"),
+        "http": require.resolve("stream-http"),
+        "https": require.resolve("https-browserify"),
+        "os": require.resolve("os-browserify/browser"),
+        "url": require.resolve("url"),
+        "util": require.resolve("util"),
+        "vm": false,
+        "fs": false,
+        "net": false,
+        "tls": false,
+      };
+
+      // Add plugins
+      webpackConfig.plugins = [
+        ...webpackConfig.plugins,
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        }),
+        new webpack.DefinePlugin({
+          global: 'globalThis',
+        })
+      ];
+
+      // Ignore certain modules that cause issues
+      webpackConfig.ignoreWarnings = [
+        /Failed to parse source map/,
+        /Critical dependency: the request of a dependency is an expression/,
+      ];
+
+      return webpackConfig;
+    },
+  },
+};
+```
+
+### 5. Update package.json Scripts
+
+Replace the default scripts in `package.json` with Craco commands:
+
+```json
+"scripts": {
+  "start": "craco start",
+  "build": "craco build",
+  "test": "craco test",
+  "eject": "react-scripts eject"
+}
+```
 
 ## Complete package.json
 
 ```json
 {
-  "name": "waku-polling-app",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
-  },
+  "name": "waku-polling-app-cra",
+  "version": "0.1.0",
+  "private": true,
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@waku/sdk": "^0.0.26",
-    "@waku/react": "^0.0.26",
-    "@waku/message-encryption": "^0.0.26",
-    "@waku/utils": "^0.0.18",
-    "protobufjs": "^7.2.5"
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.126",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@waku/message-encryption": "^0.0.37",
+    "@waku/sdk": "^0.0.34",
+    "@waku/utils": "^0.0.27",
+    "protobufjs": "^7.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-scripts": "5.0.1",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^5.0.3",
-    "typescript": "^5.9.2",
-    "vite": "^7.1.7"
+    "@craco/craco": "^7.1.0",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "https-browserify": "^1.0.0",
+    "os-browserify": "^0.3.0",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "webpack-node-externals": "^3.0.0"
   }
 }
-```
-
-## Vite Configuration
-
-### vite.config.ts
-```js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-
-  // Required for Waku
-  optimizeDeps: {
-    exclude: ['@waku/sdk']
-  },
-
-  server: {
-    port: 3000,
-    open: true
-  },
-
-  define: {
-    global: 'globalThis'
-  }
-})
-```
-
-## Project Structure
-
-```bash
-waku-polling-app/
-├── src/
-│   ├── components/     # React components
-│   ├── hooks/          # Custom hooks
-│   ├── services/       # Waku services
-│   ├── utils/          # Utilities
-│   ├── App.tsx         # Main app
-│   ├── App.css         # Styles
-│   ├── main.tsx        # Entry point
-│   └── vite-env.d.ts   # TypeScript declarations
-├── index.html
-├── package.json
-├── tsconfig.json       # TypeScript config
-├── tsconfig.node.json  # TypeScript config for Vite
-└── vite.config.ts
-```
-
-### Create Structure
-```bash
-# Create folders
-mkdir -p src/{components,hooks,services,utils}
-
-# Create main files
-touch src/services/WakuService.ts
-touch src/hooks/useWaku.ts
-touch src/components/PollCreation.tsx
-touch src/components/PollList.tsx
-touch src/components/VoteInterface.tsx
-```
-
-## Basic HTML Template
-
-**index.html**
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DecenVote</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-```
-
-## Running the App
-
-```bash
-# Development
-npm run dev
-
-# TypeScript type checking
-npm run typecheck
-
-# Production build
-npm run build
-
-# Preview production
-npm run preview
-```
-
-## Simple Troubleshooting
-
-**If Waku doesn't connect:**
-- Check your internet connection
-- Try refreshing the page
-- Check browser console for errors
-
-**If build fails:**
-```bash
-# Clean install
-rm -rf node_modules package-lock.json
-npm install
 ```
 
 ## TypeScript Configuration
 
-### tsconfig.json
+The `tsconfig.json` file is configured for Create React App:
+
 ```json
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
     "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "jsx": "react-jsx"
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": [
+    "src"
+  ]
 }
 ```
 
-### tsconfig.node.json
-```json
-{
-  "compilerOptions": {
-    "composite": true,
-    "target": "ES2020",
-    "lib": ["ES2020"],
-    "moduleResolution": "bundler",
-    "module": "ESNext",
-    "types": ["node"],
-    "allowSyntheticDefaultImports": true
-  },
-  "include": ["vite.config.ts"]
-}
+## Project Structure
+
+```
+waku-polling-app/
+├── node_modules/
+├── public/
+│   ├── index.html
+│   └── ...
+├── src/
+│   ├── components/         # React components
+│   ├── hooks/             # Custom React hooks
+│   ├── services/          # Waku service layer
+│   ├── utils/             # Utility functions
+│   ├── types/             # TypeScript type definitions
+│   ├── App.tsx
+│   ├── App.css
+│   ├── index.tsx
+│   └── index.css
+├── craco.config.js        # Craco configuration
+├── tsconfig.json          # TypeScript configuration
+├── package.json
+└── README.md
 ```
 
-### src/vite-env.d.ts
-```typescript
-/// <reference types="vite/client" />
+## Running the Application
 
-declare module "*.svg" {
-  const content: string;
-  export default content;
-}
+```bash
+# Development mode
+npm start
 
-declare module "*.png" {
-  const content: string;
-  export default content;
-}
+# Build for production
+npm run build
 
-declare module "*.jpg" {
-  const content: string;
-  export default content;
-}
+# Run tests
+npm test
 ```
 
-That's it! Simple and ready to code with TypeScript support.
+The application will start on `http://localhost:3000`
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Module resolution errors**: Make sure all polyfills are installed and craco.config.js is properly configured
+2. **TypeScript errors**: Ensure @types packages are installed for all dependencies
+3. **Build warnings about source maps**: These can be safely ignored (configured in craco.config.js)
+
+### Waku-specific Configuration
+
+- Waku requires specific Node.js polyfills to work in the browser environment
+- The Craco configuration handles webpack modifications needed for Waku
+- All Waku services should be initialized in the services directory
+
+## Next Steps
+
+After setup is complete:
+
+1. Review the [Architecture Documentation](./ARCHITECTURE.md)
+2. Understand [Waku Concepts](./WAKU_CONCEPTS.md)
+3. Follow the [Development Phases](./DEVELOPMENT_PHASES.md)
+4. Implement components following [Component Structure](./COMPONENT_STRUCTURE.md)
