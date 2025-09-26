@@ -8,7 +8,7 @@
  * - Network status monitoring
  */
 
-import { createLightNode } from "@waku/sdk";
+import { createLightNode, waitForRemotePeer, Protocols } from "@waku/sdk";
 
 export interface WakuStatus {
   connected: boolean;
@@ -20,6 +20,8 @@ export interface WakuStatus {
 export class WakuService {
   private node: any = null;
   private isInitialized = false;
+  private monitorInterval: NodeJS.Timeout | null = null;
+  private subscriptions: Map<string, any> = new Map();
   private status: WakuStatus = {
     connected: false,
     peerCount: 0,
@@ -56,11 +58,19 @@ export class WakuService {
       await this.node.start();
       console.log("✅ Waku node started");
 
-      // Wait for some time to allow connections
-      console.log("⏳ Waiting for peers...");
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      console.log("✅ Connected to remote peers");
+      // Wait for peers with proper protocol support
+      console.log("⏳ Waiting for peers with required protocols...");
+      try {
+        await waitForRemotePeer(this.node, [
+          Protocols.LightPush,  // For sending polls/votes
+          Protocols.Filter,     // For real-time updates
+          Protocols.Store       // For loading historical data (CRITICAL for polls)
+        ], 15000); // 15 second timeout
+        console.log("✅ Connected to remote peers with all protocols");
+      } catch (error) {
+        console.warn("⚠️ Timeout waiting for some protocols, continuing anyway:", error);
+        // Continue even if timeout - app can still work partially
+      }
 
       this.isInitialized = true;
       this.status.connected = true;
@@ -125,17 +135,60 @@ export class WakuService {
   }
 
   /**
+   * Cleanup all resources - CRITICAL for preventing memory leaks
+   */
+  async cleanup(): Promise<void> {
+    console.log("🧹 Starting cleanup...");
+
+    // Clear monitoring interval
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+      this.monitorInterval = null;
+      console.log("✅ Cleared monitoring interval");
+    }
+
+    // Unsubscribe all active subscriptions
+    this.subscriptions.forEach(async (subscription, topic) => {
+      try {
+        if (subscription && subscription.unsubscribe) {
+          await subscription.unsubscribe();
+        }
+        console.log(`✅ Unsubscribed from ${topic}`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to unsubscribe from ${topic}:`, error);
+      }
+    });
+    this.subscriptions.clear();
+
+    // Stop the node
+    if (this.node) {
+      try {
+        await this.node.stop();
+        console.log("✅ Waku node stopped");
+      } catch (error) {
+        console.error("❌ Error stopping node:", error);
+      }
+      this.node = null;
+    }
+
+    // Reset status
+    this.isInitialized = false;
+    this.status = {
+      connected: false,
+      peerCount: 0,
+      syncComplete: false,
+      error: null
+    };
+
+    console.log("✅ Cleanup complete");
+  }
+
+  /**
    * Stop the Waku node and cleanup resources
+   * @deprecated Use cleanup() instead
    */
   async stop(): Promise<void> {
-    if (this.node) {
-      console.log("🛑 Stopping Waku node...");
-      await this.node.stop();
-      this.node = null;
-      this.isInitialized = false;
-      this.status.connected = false;
-      console.log("✅ Waku node stopped");
-    }
+    await this.cleanup();
   }
 
   /**
@@ -144,10 +197,18 @@ export class WakuService {
   private startStatusMonitoring(): void {
     if (!this.node) return;
 
+    // Clear any existing interval
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+    }
+
     // Monitor peer connections
-    const monitorInterval = setInterval(async () => {
+    this.monitorInterval = setInterval(async () => {
       if (!this.node) {
-        clearInterval(monitorInterval);
+        if (this.monitorInterval) {
+          clearInterval(this.monitorInterval);
+          this.monitorInterval = null;
+        }
         return;
       }
 
@@ -168,14 +229,39 @@ export class WakuService {
   }
 
   /**
+   * Register a subscription for cleanup tracking
+   * Used to prevent duplicate subscriptions and ensure cleanup
+   */
+  registerSubscription(topic: string, subscription: any): void {
+    // Unsubscribe from existing subscription if it exists
+    const existing = this.subscriptions.get(topic);
+    if (existing && existing.unsubscribe) {
+      existing.unsubscribe().catch((error: any) => {
+        console.warn(`Failed to cleanup existing subscription for ${topic}:`, error);
+      });
+    }
+
+    // Store new subscription
+    this.subscriptions.set(topic, subscription);
+    console.log(`📝 Registered subscription for ${topic}`);
+  }
+
+  /**
+   * Get a registered subscription
+   */
+  getSubscription(topic: string): any {
+    return this.subscriptions.get(topic);
+  }
+
+  /**
    * Reconnection logic for handling network issues
    */
   async reconnect(): Promise<void> {
     console.log("🔄 Attempting to reconnect...");
 
     try {
-      // Stop current node if exists
-      await this.stop();
+      // Cleanup current node if exists
+      await this.cleanup();
 
       // Re-initialize
       await this.initialize();

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import './App.css';
-import { WakuService, WakuStatus } from './services/WakuService';
+import { wakuService, WakuStatus } from './services/WakuService';
 import { IdentityService, Identity } from './services/IdentityService';
+import ConnectionStatus from './components/ConnectionStatus';
 
 function App() {
   const [wakuStatus, setWakuStatus] = useState<WakuStatus>({
@@ -19,17 +20,15 @@ function App() {
         setIsInitializing(true);
 
         const identityService = new IdentityService();
-        const wakuService = new WakuService();
-
         const userIdentity = identityService.getIdentity();
         setIdentity(userIdentity);
 
+        // Initialize Waku with improved connection handling
         await wakuService.initialize();
 
         // Update status after initialization
         setWakuStatus(wakuService.getStatus());
 
-        // No cleanup needed for this version
       } catch (error) {
         console.error('Failed to initialize services:', error);
       } finally {
@@ -38,6 +37,14 @@ function App() {
     };
 
     initializeServices();
+
+    // CRITICAL: Cleanup on component unmount to prevent memory leaks
+    return () => {
+      console.log('🧹 App unmounting - cleaning up Waku service...');
+      wakuService.cleanup().catch((error) => {
+        console.error('Failed to cleanup Waku service:', error);
+      });
+    };
   }, []);
 
   const getStatusColor = () => {
@@ -70,13 +77,7 @@ function App() {
       <header className="App-header">
         <h1>🗳️ DecenVote</h1>
         <p>Decentralized Polling with Waku</p>
-        <div className="connection-status">
-          <div
-            className="status-indicator"
-            style={{ backgroundColor: getStatusColor() }}
-          />
-          <span className="status-text">{getStatusText()}</span>
-        </div>
+        <ConnectionStatus />
       </header>
 
       <main className="App-main">
@@ -101,7 +102,7 @@ function App() {
               <div className="error-details">
                 <p><strong>Error:</strong> {wakuStatus.error}</p>
                 <button
-                  onClick={() => new WakuService().reconnect()}
+                  onClick={() => wakuService.reconnect()}
                   className="retry-button"
                 >
                   Retry Connection
