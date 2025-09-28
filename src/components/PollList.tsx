@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { DataService } from '../services/DataService';
+import { DataService, createVoteDataWithDefaults } from '../services/DataService';
 import { identityService } from '../services/IdentityService';
 import type { IPollData, IVoteData } from '../services/ProtobufSchemas';
 import { PollCard } from './PollCard';
@@ -126,6 +126,34 @@ export const PollList: React.FC<PollListProps> = ({ dataService }) => {
     return results;
   };
 
+  const handleVote = async (pollId: string, optionIndex: number) => {
+    const userVote = getUserVoteForPoll(pollId);
+    if (userVote !== null) {
+      console.warn('User has already voted on this poll');
+      return;
+    }
+
+    if (!currentUserPublicKey) {
+      console.error('User identity not available');
+      return;
+    }
+
+    try {
+      const voteData = createVoteDataWithDefaults(
+        pollId,
+        optionIndex,
+        currentUserPublicKey,
+        ''
+      );
+
+      await dataService.publishVote(voteData);
+
+      console.log(`✅ Vote submitted for poll ${pollId}, option ${optionIndex}`);
+    } catch (err) {
+      console.error('Failed to submit vote:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="poll-list">
@@ -168,6 +196,7 @@ export const PollList: React.FC<PollListProps> = ({ dataService }) => {
           <PollCard
             key={poll.id}
             poll={poll}
+            onVote={handleVote}
             currentUserPublicKey={currentUserPublicKey}
             userVote={getUserVoteForPoll(poll.id)}
             voteResults={getVoteResultsForPoll(poll.id)}
