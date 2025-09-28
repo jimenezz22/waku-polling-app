@@ -15,10 +15,24 @@ module.exports = {
         "os": require.resolve("os-browserify/browser"),
         "url": require.resolve("url"),
         "util": require.resolve("util"),
+        "process": require.resolve("process/browser"),
+        "process/browser": require.resolve("process/browser"),
         "vm": false,
         "fs": false,
         "net": false,
         "tls": false,
+      };
+
+      // Handle .js extensions for ESM modules
+      webpackConfig.resolve.extensionAlias = {
+        ...webpackConfig.resolve.extensionAlias,
+        '.js': ['.ts', '.tsx', '.js', '.jsx']
+      };
+
+      // Add alias for process/browser to resolve correctly
+      webpackConfig.resolve.alias = {
+        ...webpackConfig.resolve.alias,
+        'process/browser': require.resolve('process/browser.js'),
       };
 
       // Add plugins
