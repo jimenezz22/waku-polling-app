@@ -37,6 +37,26 @@ export class WakuService {
 
 
   /**
+   * Check if Waku service is initialized
+   */
+  checkIsInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Subscribe to status changes
+   */
+  onStatusChange(callback: (status: WakuStatus) => void): () => void {
+    // Create a simple listener pattern
+    const statusListener = setInterval(() => {
+      callback(this.getStatus());
+    }, 1000);
+
+    // Return cleanup function
+    return () => clearInterval(statusListener);
+  }
+
+  /**
    * Initialize the Waku Light Node and wait for peer connections
    */
   async initialize(): Promise<any> {

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { DataService, createVoteDataWithDefaults } from '../services/DataService';
-import { identityService } from '../services/IdentityService';
-import type { IPollData, IVoteData } from '../services/ProtobufSchemas';
+import React from 'react';
+import { DataService } from '../services/DataService';
+import { usePolls } from '../hooks/usePolls';
+import { useVotes } from '../hooks/useVotes';
+import { useIdentity } from '../hooks/useIdentity';
 import { PollCard } from './PollCard';
 
 interface PollListProps {
@@ -9,148 +10,15 @@ interface PollListProps {
 }
 
 export const PollList: React.FC<PollListProps> = ({ dataService }) => {
-  const [polls, setPolls] = useState<IPollData[]>([]);
-  const [votes, setVotes] = useState<IVoteData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUserPublicKey, setCurrentUserPublicKey] = useState<string>('');
-
-  useEffect(() => {
-    const identity = identityService.getIdentity();
-    if (identity) {
-      setCurrentUserPublicKey(identity.publicKeyHex);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!dataService.isReady()) {
-      setError('Waiting for Waku network...');
-      return;
-    }
-
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [historicalPolls, historicalVotes] = await Promise.all([
-          dataService.loadHistoricalPolls(),
-          dataService.loadHistoricalVotes(),
-        ]);
-
-        setPolls(historicalPolls.sort((a, b) => b.timestamp - a.timestamp));
-        setVotes(historicalVotes);
-
-        await setupSubscriptions();
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Failed to load data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-        setLoading(false);
-      }
-    };
-
-    const setupSubscriptions = async () => {
-      try {
-        await dataService.subscribeToPolls(
-          (newPoll) => {
-            setPolls((prev) => {
-              if (prev.some((p) => p.id === newPoll.id)) {
-                return prev;
-              }
-              return [newPoll, ...prev].sort((a, b) => b.timestamp - a.timestamp);
-            });
-          },
-          (err) => {
-            console.error('Poll subscription error:', err);
-          }
-        );
-
-        await dataService.subscribeToVotes(
-          (newVote) => {
-            setVotes((prev) => {
-              if (
-                prev.some(
-                  (v) =>
-                    v.pollId === newVote.pollId &&
-                    v.voterPublicKey === newVote.voterPublicKey
-                )
-              ) {
-                return prev;
-              }
-              return [...prev, newVote];
-            });
-          },
-          (err) => {
-            console.error('Vote subscription error:', err);
-          }
-        );
-      } catch (err) {
-        console.error('Failed to setup subscriptions:', err);
-      }
-    };
-
-    loadData();
-
-    return () => {
-      dataService.cleanup().catch((err) => {
-        console.error('Cleanup error:', err);
-      });
-    };
-  }, [dataService]);
-
-  const getUserVoteForPoll = (pollId: string): number | null => {
-    const userVote = votes.find(
-      (v) => v.pollId === pollId && v.voterPublicKey === currentUserPublicKey
-    );
-    return userVote ? userVote.optionIndex : null;
-  };
-
-  const getVoteResultsForPoll = (pollId: string): { [optionIndex: number]: number } => {
-    const pollVotes = votes.filter((v) => v.pollId === pollId);
-
-    const deduplicatedVotes = new Map<string, IVoteData>();
-    pollVotes.forEach((vote) => {
-      const key = `${vote.pollId}_${vote.voterPublicKey}`;
-      if (!deduplicatedVotes.has(key)) {
-        deduplicatedVotes.set(key, vote);
-      }
-    });
-
-    const results: { [optionIndex: number]: number } = {};
-    Array.from(deduplicatedVotes.values()).forEach((vote) => {
-      results[vote.optionIndex] = (results[vote.optionIndex] || 0) + 1;
-    });
-
-    return results;
-  };
+  const { fullPublicKey } = useIdentity();
+  const { polls, loading, error } = usePolls(dataService);
+  const { submitVote, getUserVoteForPoll, getVoteResults } = useVotes(dataService, fullPublicKey);
 
   const handleVote = async (pollId: string, optionIndex: number) => {
-    const userVote = getUserVoteForPoll(pollId);
-    if (userVote !== null) {
-      console.warn('User has already voted on this poll');
-      return;
-    }
-
-    if (!currentUserPublicKey) {
-      console.error('User identity not available');
-      return;
-    }
-
     try {
-      const voteData = createVoteDataWithDefaults(
-        pollId,
-        optionIndex,
-        currentUserPublicKey,
-        ''
-      );
-
-      await dataService.publishVote(voteData);
-
-      console.log(`✅ Vote submitted for poll ${pollId}, option ${optionIndex}`);
+      await submitVote(pollId, optionIndex);
     } catch (err) {
-      console.error('Failed to submit vote:', err);
+      console.error('Failed to vote:', err);
     }
   };
 
@@ -197,9 +65,9 @@ export const PollList: React.FC<PollListProps> = ({ dataService }) => {
             key={poll.id}
             poll={poll}
             onVote={handleVote}
-            currentUserPublicKey={currentUserPublicKey}
+            currentUserPublicKey={fullPublicKey}
             userVote={getUserVoteForPoll(poll.id)}
-            voteResults={getVoteResultsForPoll(poll.id)}
+            voteResults={getVoteResults(poll.id)}
             showResults={true}
           />
         ))}

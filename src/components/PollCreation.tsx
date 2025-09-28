@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DataService, createPollDataWithDefaults } from '../services/DataService';
-import { identityService } from '../services/IdentityService';
+import { useIdentity } from '../hooks/useIdentity';
+import { usePolls } from '../hooks/usePolls';
 
 interface PollCreationProps {
   dataService: DataService;
@@ -16,6 +17,9 @@ export const PollCreation: React.FC<PollCreationProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const { identity, fullPublicKey } = useIdentity();
+  const { createPoll } = usePolls(dataService);
 
   const addOption = () => {
     if (options.length < 6) {
@@ -69,8 +73,7 @@ export const PollCreation: React.FC<PollCreationProps> = ({
       return;
     }
 
-    const identity = identityService.getIdentity();
-    if (!identity) {
+    if (!identity || !fullPublicKey) {
       setError('Identity not available. Please refresh the page.');
       return;
     }
@@ -88,10 +91,10 @@ export const PollCreation: React.FC<PollCreationProps> = ({
       const pollData = createPollDataWithDefaults(
         question.trim(),
         validOptions.map(opt => opt.trim()),
-        identity.publicKeyHex
+        fullPublicKey
       );
 
-      await dataService.publishPoll(pollData);
+      await createPoll(pollData);
 
       setSuccess(true);
       setQuestion('');

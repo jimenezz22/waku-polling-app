@@ -1,55 +1,13 @@
-import { useState, useEffect } from 'react';
 import './App.css';
-import { wakuService, WakuStatus } from './services/WakuService';
-import { IdentityService, Identity } from './services/IdentityService';
-import { DataService } from './services/DataService';
+import { useWaku } from './hooks/useWaku';
+import { useIdentity } from './hooks/useIdentity';
 import ConnectionStatus from './components/ConnectionStatus';
 import PollCreation from './components/PollCreation';
 import PollList from './components/PollList';
 
 function App() {
-  const [wakuStatus, setWakuStatus] = useState<WakuStatus>({
-    connected: false,
-    peerCount: 0,
-    syncComplete: false,
-    error: null
-  });
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [dataService, setDataService] = useState<DataService | null>(null);
-
-  useEffect(() => {
-    const initializeServices = async () => {
-      try {
-        setIsInitializing(true);
-
-        const identityService = new IdentityService();
-        const userIdentity = identityService.getIdentity();
-        setIdentity(userIdentity);
-
-        await wakuService.initialize();
-
-        setWakuStatus(wakuService.getStatus());
-
-        const service = new DataService(wakuService);
-        setDataService(service);
-
-      } catch (error) {
-        console.error('Failed to initialize services:', error);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    initializeServices();
-
-    return () => {
-      console.log('🧹 App unmounting - cleaning up Waku service...');
-      wakuService.cleanup().catch((error) => {
-        console.error('Failed to cleanup Waku service:', error);
-      });
-    };
-  }, []);
+  const { status, isConnected, isInitializing, dataService, reconnect } = useWaku();
+  const { identity, publicKey } = useIdentity();
 
   if (isInitializing) {
     return (
@@ -71,10 +29,10 @@ function App() {
       </header>
 
       <main className="App-main">
-        {wakuStatus.connected && dataService ? (
+        {isConnected && dataService ? (
           <div className="app-content">
             <div className="identity-info">
-              <p>Your Identity: <code>{identity?.publicKeyHex?.substring(0, 16)}...</code></p>
+              <p>Your Identity: <code>{publicKey}</code></p>
               <p>Created: {identity?.created ? new Date(identity.created).toLocaleString() : 'Unknown'}</p>
             </div>
 
@@ -86,11 +44,11 @@ function App() {
           <div className="connection-error">
             <h3>Connection Required</h3>
             <p>Please wait while we connect to the Waku network...</p>
-            {wakuStatus.error && (
+            {status.error && (
               <div className="error-details">
-                <p><strong>Error:</strong> {wakuStatus.error}</p>
+                <p><strong>Error:</strong> {status.error}</p>
                 <button
-                  onClick={() => wakuService.reconnect()}
+                  onClick={reconnect}
                   className="retry-button"
                 >
                   Retry Connection

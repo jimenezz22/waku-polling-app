@@ -142,6 +142,8 @@ This document outlines the iterative development phases for building the DecenVo
 
 ## **Phase 5: Voting System** ✅
 
+**Status:** ✅ Completed
+
 **Goal**: Implement voting interface and results display with deduplication
 
 ### Tasks:
@@ -185,14 +187,15 @@ This document outlines the iterative development phases for building the DecenVo
 
 ## **Phase 6: Final Integration & Polish** ✨
 
+**Status:** ✅ Completed
+
 **Goal**: Complete application with custom hooks, status monitoring, and comprehensive testing
 
 ### Tasks:
-1. Create custom React hooks for centralized state management:
-   - `useDataService` - Wrapper around DataService with cleanup
-   - `usePolls` - Manages polls state (loading, subscriptions, deduplication)
-   - `useVotes` - Manages votes state (loading, subscriptions, deduplication)
-   - `useVoting` - Handles vote submission logic
+1. ✅ Create custom React hooks for centralized state management:
+   - ✅ `useIdentity` - Manages user identity state
+   - ✅ `usePolls` - Manages polls state (loading, subscriptions, deduplication)
+   - ✅ `useVotes` - Manages votes state (loading, subscriptions, deduplication, vote submission)
    - Reference the example hook in Phase 3 documentation
 2. Enhance Header and Footer components:
    - Show Waku connection status from WakuService
@@ -243,9 +246,10 @@ src/
 │   ├── VoteInterface.tsx
 │   └── ConnectionStatus.tsx
 ├── hooks/             # Custom React hooks
-│   ├── useWaku.ts
-│   ├── usePolls.ts       # (Phase 6)
-│   └── useVotes.ts       # (Phase 6)
+│   ├── useWaku.ts        # ✅ Phase 6: Waku connection and DataService hook
+│   ├── useIdentity.ts    # ✅ Phase 6: Identity state hook
+│   ├── usePolls.ts       # ✅ Phase 6: Polls management hook
+│   └── useVotes.ts       # ✅ Phase 6: Votes management hook
 ├── services/          # Waku integration services
 │   ├── WakuService.ts           # ✅ Phase 2: Waku Light Node
 │   ├── IdentityService.ts       # ✅ Phase 2: Identity management
