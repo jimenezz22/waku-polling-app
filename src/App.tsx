@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import './App.css';
 import { wakuService, WakuStatus } from './services/WakuService';
 import { IdentityService, Identity } from './services/IdentityService';
+import { DataService } from './services/DataService';
 import ConnectionStatus from './components/ConnectionStatus';
+import PollCreation from './components/PollCreation';
+import PollList from './components/PollList';
 
 function App() {
   const [wakuStatus, setWakuStatus] = useState<WakuStatus>({
@@ -13,6 +16,7 @@ function App() {
   });
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [dataService, setDataService] = useState<DataService | null>(null);
 
   useEffect(() => {
     const initializeServices = async () => {
@@ -23,11 +27,12 @@ function App() {
         const userIdentity = identityService.getIdentity();
         setIdentity(userIdentity);
 
-        // Initialize Waku with improved connection handling
         await wakuService.initialize();
 
-        // Update status after initialization
         setWakuStatus(wakuService.getStatus());
+
+        const service = new DataService(wakuService);
+        setDataService(service);
 
       } catch (error) {
         console.error('Failed to initialize services:', error);
@@ -38,7 +43,6 @@ function App() {
 
     initializeServices();
 
-    // CRITICAL: Cleanup on component unmount to prevent memory leaks
     return () => {
       console.log('🧹 App unmounting - cleaning up Waku service...');
       wakuService.cleanup().catch((error) => {
@@ -46,20 +50,6 @@ function App() {
       });
     };
   }, []);
-
-  const getStatusColor = () => {
-    if (isInitializing) return '#ffa500';
-    if (wakuStatus.connected) return '#4caf50';
-    if (wakuStatus.error) return '#f44336';
-    return '#9e9e9e';
-  };
-
-  const getStatusText = () => {
-    if (isInitializing) return 'Initializing...';
-    if (wakuStatus.connected) return `Connected (${wakuStatus.peerCount} peers)`;
-    if (wakuStatus.error) return `Error: ${wakuStatus.error}`;
-    return 'Disconnected';
-  };
 
   if (isInitializing) {
     return (
@@ -81,18 +71,16 @@ function App() {
       </header>
 
       <main className="App-main">
-        {wakuStatus.connected ? (
+        {wakuStatus.connected && dataService ? (
           <div className="app-content">
             <div className="identity-info">
               <p>Your Identity: <code>{identity?.publicKeyHex?.substring(0, 16)}...</code></p>
               <p>Created: {identity?.created ? new Date(identity.created).toLocaleString() : 'Unknown'}</p>
             </div>
 
-            <div className="placeholder-content">
-              <h3>🚧 Coming Soon</h3>
-              <p>Poll creation and voting interface will be implemented in the next phases.</p>
-              <p>Current status: Waku Light Node connected successfully!</p>
-            </div>
+            <PollCreation dataService={dataService} />
+
+            <PollList dataService={dataService} />
           </div>
         ) : (
           <div className="connection-error">
