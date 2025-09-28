@@ -2,6 +2,7 @@ import './App.css';
 import { useWaku } from './hooks/useWaku';
 import { useIdentity } from './hooks/useIdentity';
 import ConnectionStatus from './components/ConnectionStatus';
+import ProtocolStatus from './components/ProtocolStatus';
 import PollCreation from './components/PollCreation';
 import PollList from './components/PollList';
 
@@ -35,6 +36,8 @@ function App() {
               <p>Your Identity: <code>{publicKey}</code></p>
               <p>Created: {identity?.created ? new Date(identity.created).toLocaleString() : 'Unknown'}</p>
             </div>
+
+            <ProtocolStatus />
 
             <PollCreation dataService={dataService} />
 

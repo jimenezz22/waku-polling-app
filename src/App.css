@@ -463,3 +463,64 @@
   font-size: 0.875rem;
   margin: 0;
 }
+
+/* Protocol Status */
+.protocol-status {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+}
+
+.protocol-status h3 {
+  margin-top: 0;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+}
+
+.protocol-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.protocol-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.protocol-icon {
+  font-size: 1.25rem;
+  width: 24px;
+  text-align: center;
+}
+
+.protocol-name {
+  font-weight: 500;
+  color: #2c3e50;
+  min-width: 120px;
+}
+
+.protocol-desc {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.protocol-note {
+  background: #ecf8ff;
+  border-left: 4px solid #3498db;
+  padding: 1rem;
+  border-radius: 4px;
+}
+
+.protocol-note p {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}

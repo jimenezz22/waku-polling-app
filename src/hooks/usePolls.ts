@@ -60,7 +60,17 @@ export const usePolls = (dataService: DataService | null) => {
       setLoading(false);
     } catch (err) {
       console.error('Failed to load polls:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load polls');
+
+      // Separate Store protocol errors from critical errors
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load polls';
+      if (errorMessage.includes('No peers available to query')) {
+        console.warn('⚠️ Store protocol not available - historical data unavailable, but new polls will work');
+        setError(null); // Don't show critical error
+        setPolls([]); // Start with empty polls array
+      } else {
+        // This is a real error that should be shown
+        setError(errorMessage);
+      }
       setLoading(false);
     }
   }, [dataService]);
@@ -71,11 +81,8 @@ export const usePolls = (dataService: DataService | null) => {
     }
 
     return () => {
-      if (dataService) {
-        dataService.cleanup().catch((err) => {
-          console.error('Cleanup error:', err);
-        });
-      }
+      // Don't cleanup dataService here - it's managed by useWaku hook
+      // Cleanup in hooks causes issues with React StrictMode
     };
   }, [dataService, loadPolls]);
 

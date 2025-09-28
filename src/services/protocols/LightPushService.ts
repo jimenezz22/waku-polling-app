@@ -123,6 +123,14 @@ export class LightPushService {
     }
 
     try {
+      // Debug: Check node state before sending
+      console.log(`🔍 Pre-send debug:`, {
+        nodeReady: this.wakuService.isReady(),
+        hasNode: !!node,
+        hasLightPush: !!node.lightPush,
+        pollId: pollData.id
+      });
+
       // Encode poll data to bytes
       const payload = encodePollData(pollData);
 
@@ -132,12 +140,46 @@ export class LightPushService {
       });
 
       // Check if message was sent successfully
-      if (result.recipients.length > 0) {
+      console.log('📤 Light Push result:', result);
+
+      // If no peers available, try to reconnect and retry
+      if (result.failures && result.failures.length > 0 && result.successes.length === 0) {
+        const failureReason = result.failures[0]?.error || 'Unknown error';
+
+        if (failureReason.includes('No peer available')) {
+          console.log('🔄 No peers available, attempting to reconnect...');
+
+          try {
+            // Wait for LightPush peers
+            await this.wakuService.waitForLightPushPeers();
+
+            // Retry sending
+            console.log('🔁 Retrying poll publication...');
+            const retryResult = await node.lightPush.send(this.pollEncoder, {
+              payload,
+            });
+
+            console.log('📤 Retry result:', retryResult);
+
+            if (retryResult.successes && retryResult.successes.length > 0) {
+              console.log(`✅ Poll published successfully on retry: ${pollData.id}`);
+              return pollData;
+            }
+          } catch (reconnectError) {
+            console.error('❌ Failed to reconnect to peers:', reconnectError);
+          }
+        }
+      }
+
+      if (result.successes && result.successes.length > 0) {
+        console.log(`✅ Poll published successfully: ${pollData.id}`);
+        return pollData;
+      } else if (result.recipients && result.recipients.length > 0) {
         console.log(`✅ Poll published successfully: ${pollData.id}`);
         return pollData;
       } else {
         throw new Error(
-          `Failed to publish poll: ${result.errors?.join(", ") || "No recipients"}`
+          `Failed to publish poll: ${result.errors?.join(", ") || result.failures?.map((f: any) => f.error)?.join(", ") || "No recipients"}`
         );
       }
     } catch (error) {
@@ -174,12 +216,44 @@ export class LightPushService {
       });
 
       // Check if message was sent successfully
-      if (result.recipients.length > 0) {
+      console.log('📤 Light Push vote result:', result);
+
+      // If no peers available, try to reconnect and retry (same as polls)
+      if (result.failures && result.failures.length > 0 && result.successes.length === 0) {
+        const failureReason = result.failures[0]?.error || 'Unknown error';
+
+        if (failureReason.includes('No peer available')) {
+          console.log('🔄 No peers available for vote, attempting to reconnect...');
+
+          try {
+            await this.wakuService.waitForLightPushPeers();
+            console.log('🔁 Retrying vote publication...');
+
+            const retryResult = await node.lightPush.send(this.voteEncoder, {
+              payload,
+            });
+
+            console.log('📤 Vote retry result:', retryResult);
+
+            if (retryResult.successes && retryResult.successes.length > 0) {
+              console.log(`✅ Vote published successfully on retry: ${voteData.pollId}`);
+              return voteData;
+            }
+          } catch (reconnectError) {
+            console.error('❌ Failed to reconnect for vote:', reconnectError);
+          }
+        }
+      }
+
+      if (result.successes && result.successes.length > 0) {
+        console.log(`✅ Vote published successfully for poll: ${voteData.pollId}`);
+        return voteData;
+      } else if (result.recipients && result.recipients.length > 0) {
         console.log(`✅ Vote published successfully for poll: ${voteData.pollId}`);
         return voteData;
       } else {
         throw new Error(
-          `Failed to publish vote: ${result.errors?.join(", ") || "No recipients"}`
+          `Failed to publish vote: ${result.errors?.join(", ") || result.failures?.map((f: any) => f.error)?.join(", ") || "No recipients"}`
         );
       }
     } catch (error) {

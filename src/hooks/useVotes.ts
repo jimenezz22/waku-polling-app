@@ -69,6 +69,15 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
         );
       } catch (err) {
         console.error('Failed to load votes:', err);
+
+        // Handle Store protocol errors gracefully
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load votes';
+        if (errorMessage.includes('No peers available to query')) {
+          console.warn('⚠️ Store protocol not available - historical votes unavailable, but voting will work');
+          // Don't throw error, just start with empty votes array
+          setVotes([]);
+        }
+        // For other errors, continue silently but log them
       }
     };
 
