@@ -1,3 +1,15 @@
+/**
+ * PollCard - Individual poll display and voting component
+ *
+ * This component handles:
+ * - Display of poll question and metadata (creator, timestamp)
+ * - Interactive voting interface with option buttons
+ * - Vote results visualization with progress bars
+ * - User vote status and restrictions (one vote per poll)
+ * - Real-time vote count updates
+ * - Responsive design for different screen sizes
+ */
+
 import React from 'react';
 import type { IPollData } from '../services/ProtobufSchemas';
 

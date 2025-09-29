@@ -33,36 +33,45 @@ export const usePolls = (dataService: DataService | null) => {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      // Load historical polls
+    // Try to load historical polls (optional)
+    try {
+      console.log('📥 Attempting to load historical polls...');
       const historicalPolls = await dataService.loadHistoricalPolls();
       setPolls(historicalPolls.sort((a, b) => b.timestamp - a.timestamp));
+      console.log(`✅ Loaded ${historicalPolls.length} historical polls`);
+    } catch (err) {
+      console.warn('⚠️ Failed to load historical polls (Store protocol unavailable):', err);
+      setPolls([]); // Start with empty polls array
+    }
 
-      // Subscribe to new polls
+    // Subscribe to new polls (ALWAYS do this, regardless of historical loading)
+    try {
+      console.log('🔄 Setting up poll subscription...');
       await dataService.subscribeToPolls(
-        (newPoll) => {
+        (newPoll: IPollData) => {
+          console.log('📥 Received new poll via subscription:', newPoll.id);
           setPolls((prev) => {
             if (prev.some((p) => p.id === newPoll.id)) {
-              return prev;
+              return prev; // Prevent duplicates
             }
             return [newPoll, ...prev].sort((a, b) => b.timestamp - a.timestamp);
           });
         },
-        (err) => {
+        (err: Error) => {
           console.error('Poll subscription error:', err);
           setError('Failed to subscribe to polls');
         }
       );
-
-      setLoading(false);
+      console.log('✅ Poll subscription setup complete');
     } catch (err) {
-      console.error('Failed to load polls:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load polls');
-      setLoading(false);
+      console.error('❌ Failed to setup poll subscription:', err);
+      setError('Failed to subscribe to new polls');
     }
+
+    setLoading(false);
   }, [dataService]);
 
   useEffect(() => {
@@ -71,11 +80,8 @@ export const usePolls = (dataService: DataService | null) => {
     }
 
     return () => {
-      if (dataService) {
-        dataService.cleanup().catch((err) => {
-          console.error('Cleanup error:', err);
-        });
-      }
+      // Don't cleanup dataService here - it's managed by useWaku hook
+      // Cleanup in hooks causes issues with React StrictMode
     };
   }, [dataService, loadPolls]);
 

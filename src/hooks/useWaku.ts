@@ -32,20 +32,39 @@ export const useWaku = () => {
   const [dataService, setDataService] = useState<DataService | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
+  // Add window cleanup listener
   useEffect(() => {
+    const handleWindowClose = () => {
+      console.log('🚪 Window closing - cleaning up Waku');
+      wakuService.cleanup().catch((error) => {
+        console.error('Failed to cleanup on window close:', error);
+      });
+    };
+
+    window.addEventListener('beforeunload', handleWindowClose);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleWindowClose);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
     const initWaku = async () => {
       try {
         setIsInitializing(true);
 
         // Initialize Waku if not already done
-        if (!wakuService.checkIsInitialized()) {
+        if (!wakuService.checkIsInitialized() && mounted) {
           await wakuService.initialize();
         }
 
         setStatus(wakuService.getStatus());
 
-        // Create DataService once Waku is ready
-        if (wakuService.isReady()) {
+        // Create DataService once Waku is ready (only if we don't have one)
+        if (wakuService.isReady() && !dataService) {
+          console.log('🔗 Creating initial DataService');
           const service = new DataService(wakuService);
           setDataService(service);
         }
@@ -66,19 +85,20 @@ export const useWaku = () => {
     const unsubscribe = wakuService.onStatusChange((newStatus) => {
       setStatus(newStatus);
 
-      // Create DataService when connection becomes ready
-      if (newStatus.connected && newStatus.syncComplete && !dataService) {
+      // Create DataService when connection becomes ready (only once)
+      if (newStatus.connected && newStatus.syncComplete && !dataService && wakuService.isReady()) {
+        console.log('🔗 Creating DataService from status change');
         const service = new DataService(wakuService);
         setDataService(service);
       }
     });
 
     return () => {
+      mounted = false;
       unsubscribe();
-      // Cleanup on unmount
-      wakuService.cleanup().catch((error) => {
-        console.error('Failed to cleanup Waku service:', error);
-      });
+      // Don't cleanup Waku on component unmount in development
+      // React StrictMode causes double mounting/unmounting
+      // Only cleanup when the entire app unmounts (window close)
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

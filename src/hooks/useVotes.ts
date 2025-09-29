@@ -47,8 +47,10 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
         setVotes(historicalVotes);
 
         // Subscribe to new votes
+        console.log('🗳️ Setting up vote subscription...');
         await dataService.subscribeToVotes(
-          (newVote) => {
+          (newVote: IVoteData) => {
+            console.log('🗳️ Received new vote via subscription:', newVote.pollId, 'option:', newVote.optionIndex);
             setVotes((prev) => {
               // Deduplicate votes
               if (
@@ -58,17 +60,29 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
                     v.voterPublicKey === newVote.voterPublicKey
                 )
               ) {
+                console.log('🗳️ Duplicate vote ignored for poll:', newVote.pollId);
                 return prev;
               }
+              console.log('🗳️ Adding new vote to state for poll:', newVote.pollId);
               return [...prev, newVote];
             });
           },
-          (err) => {
+          (err: Error) => {
             console.error('Vote subscription error:', err);
           }
         );
+        console.log('🗳️ Vote subscription setup complete');
       } catch (err) {
         console.error('Failed to load votes:', err);
+
+        // Handle Store protocol errors gracefully
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load votes';
+        if (errorMessage.includes('No peers available to query')) {
+          console.warn('⚠️ Store protocol not available - historical votes unavailable, but voting will work');
+          // Don't throw error, just start with empty votes array
+          setVotes([]);
+        }
+        // For other errors, continue silently but log them
       }
     };
 
@@ -137,6 +151,7 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
       '' // Signature placeholder
     );
 
+    console.log(`🗳️ Publishing vote for poll ${pollId}, option ${optionIndex}:`, voteData);
     await dataService.publishVote(voteData);
     console.log(`✅ Vote submitted for poll ${pollId}, option ${optionIndex}`);
   }, [dataService, userPublicKey, votes]);

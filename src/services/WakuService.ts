@@ -9,6 +9,7 @@
  */
 
 import { createLightNode, waitForRemotePeer, Protocols } from "@waku/sdk";
+import { WakuConfig } from "./config/WakuConfig";
 
 export interface WakuStatus {
   connected: boolean;
@@ -29,11 +30,8 @@ export class WakuService {
     error: null
   };
 
-  // Content topics for DecenVote
-  public static readonly CONTENT_TOPICS = {
-    POLLS: "/decenvote/1/polls/proto",
-    VOTES: "/decenvote/1/votes/proto"
-  } as const;
+  // Content topics from config
+  public static readonly CONTENT_TOPICS = WakuConfig.CONTENT_TOPICS;
 
 
   /**
@@ -41,6 +39,53 @@ export class WakuService {
    */
   checkIsInitialized(): boolean {
     return this.isInitialized;
+  }
+
+  /**
+   * Get the Waku node instance
+   */
+  getNode(): any {
+    return this.node;
+  }
+
+  /**
+   * Wait for LightPush peers with retries
+   */
+  async waitForLightPushPeers(): Promise<void> {
+    if (!this.node) {
+      throw new Error("Waku node not initialized");
+    }
+
+    console.log("🔄 Checking for LightPush peers...");
+
+    let attempts = 3;
+
+    while (attempts > 0) {
+      try {
+        await waitForRemotePeer(this.node, [Protocols.LightPush], WakuConfig.PROTOCOL_TIMEOUTS.lightPush);
+
+        // Verify we actually have peers
+        const connections = this.node.libp2p.getConnections();
+        console.log(`📊 Found ${connections.length} total connections`);
+
+        if (connections.length > 0) {
+          console.log("✅ LightPush peers found and verified");
+          return;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Attempt ${4 - attempts}/3 failed:`, error);
+      }
+
+      attempts--;
+
+      if (attempts > 0) {
+        console.log("🔁 Retrying peer discovery...");
+        await new Promise(resolve => setTimeout(resolve, WakuConfig.NODE.reconnectDelay));
+      }
+    }
+
+    console.error("❌ Failed to find LightPush peers after 3 attempts");
+    throw new Error("No LightPush peers available");
   }
 
   /**
@@ -67,9 +112,10 @@ export class WakuService {
     try {
       console.log("🚀 Initializing Waku Light Node...");
 
-      // Create Light Node - using the exact pattern from docs
+      // Create Light Node with configuration
       this.node = await createLightNode({
-        defaultBootstrap: true
+        defaultBootstrap: WakuConfig.NODE.defaultBootstrap,
+        bootstrapPeers: WakuConfig.NODE.bootstrapPeers
       });
 
       console.log("✅ Light Node created");
@@ -78,23 +124,42 @@ export class WakuService {
       await this.node.start();
       console.log("✅ Waku node started");
 
+      // Let the node auto-discover peers (since we're using defaultBootstrap: true)
+      console.log("🔄 Letting node discover peers automatically...");
+
       // Wait for peers with proper protocol support
       console.log("⏳ Waiting for peers with required protocols...");
       try {
-        await waitForRemotePeer(this.node, [
-          Protocols.LightPush,  // For sending polls/votes
-          Protocols.Filter,     // For real-time updates
-          Protocols.Store       // For loading historical data (CRITICAL for polls)
-        ], 15000); // 15 second timeout
-        console.log("✅ Connected to remote peers with all protocols");
+        // First, wait for LightPush specifically (needed for creating polls)
+        await waitForRemotePeer(this.node, [Protocols.LightPush], WakuConfig.NODE.connectionTimeout);
+        console.log("✅ LightPush peer found");
+
+        // Give peers time to stabilize
+        console.log("⏳ Letting peers stabilize...");
+        await new Promise(resolve => setTimeout(resolve, WakuConfig.NODE.peerStabilizationDelay));
+
+        // Then try to get Filter and Store (best effort)
+        try {
+          await waitForRemotePeer(this.node, [
+            Protocols.Filter,     // For real-time updates
+            Protocols.Store       // For loading historical data
+          ], WakuConfig.PROTOCOL_TIMEOUTS.filter);
+          console.log("✅ Connected to remote peers with all protocols");
+        } catch (storeError) {
+          console.warn("⚠️ Store/Filter peers not found, but LightPush is available");
+        }
       } catch (error) {
-        console.warn("⚠️ Timeout waiting for some protocols, continuing anyway:", error);
-        // Continue even if timeout - app can still work partially
+        console.error("❌ No LightPush peers found. Polls creation will not work:", error);
+        this.status.error = "No LightPush peers available";
+        // Continue anyway - user will see the error when trying to create polls
       }
 
       this.isInitialized = true;
       this.status.connected = true;
-      this.status.error = null;
+      // Only clear error if we don't have a LightPush error
+      if (this.status.error !== "No LightPush peers available") {
+        this.status.error = null;
+      }
 
       // Get peer count
       try {
@@ -131,13 +196,6 @@ export class WakuService {
 
       throw new Error(`Waku initialization failed: ${errorMessage}`);
     }
-  }
-
-  /**
-   * Get the current Waku node instance
-   */
-  getNode(): any {
-    return this.node;
   }
 
   /**
@@ -245,7 +303,7 @@ export class WakuService {
       } catch (error) {
         console.warn("⚠️ Could not update peer count:", error);
       }
-    }, 10000); // Check every 10 seconds
+    }, WakuConfig.MONITORING.statusCheckInterval);
   }
 
   /**
