@@ -1,3 +1,15 @@
+/**
+ * PollCreation - Component for creating new polls
+ *
+ * This component provides:
+ * - Form interface for poll question and options
+ * - Real-time form validation and user feedback
+ * - Integration with DataService for poll publishing
+ * - Dynamic option management (add/remove options)
+ * - Success/error state management
+ * - Automatic form reset after successful submission
+ */
+
 import React, { useState } from 'react';
 import { DataService, createPollDataWithDefaults } from '../services/DataService';
 import { useIdentity } from '../hooks/useIdentity';

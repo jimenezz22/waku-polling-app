@@ -1,3 +1,13 @@
+/**
+ * App - Main application component for DecenVote
+ *
+ * This is the root component that orchestrates the entire DecenVote application:
+ * - Initializes Waku network connection
+ * - Manages user identity and authentication
+ * - Provides global error handling for Store protocol
+ * - Renders the main UI components (status, poll creation, poll list)
+ */
+
 import './App.css';
 import { useEffect } from 'react';
 import { useWaku } from './hooks/useWaku';

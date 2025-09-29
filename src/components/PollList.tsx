@@ -1,3 +1,14 @@
+/**
+ * PollList - Component for displaying and managing polls
+ *
+ * This component:
+ * - Displays all polls from the Waku network in real-time
+ * - Handles loading and error states
+ * - Provides voting functionality through PollCard components
+ * - Shows empty state when no polls are available
+ * - Integrates with usePolls and useVotes hooks for state management
+ */
+
 import React from 'react';
 import { DataService } from '../services/DataService';
 import { usePolls } from '../hooks/usePolls';
