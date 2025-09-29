@@ -12,7 +12,7 @@ console.error = (...args: any[]) => {
       message.includes('MissingMessageRetriever') ||
       message.includes('is not a function or its return value is not async iterable') ||
       message.includes('this._retrieve') ||
-      message.includes('Store') && message.includes('query')) {
+      (message.includes('Store') && message.includes('query'))) {
     console.warn('⚠️ Store protocol error suppressed at index level:', ...args);
     return;
   }

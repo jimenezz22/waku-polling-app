@@ -2,29 +2,26 @@
  * DataService - Orchestrates all Waku protocol operations
  *
  * This service acts as a unified interface for all Waku messaging operations:
- * - Publishing polls and votes (via LightPushService)
+ * - Real-time publishing and subscriptions (via ReliableChannelService)
  * - Loading historical data (via StoreService)
- * - Real-time subscriptions (via FilterService)
  *
  * It provides a simple, centralized API for components to interact with
  * the Waku network without needing to know about individual protocols.
  *
  * Architecture:
  * DataService (orchestrator)
- *   ├── LightPushService (publishing)
- *   ├── StoreService (historical data)
- *   └── FilterService (subscriptions)
+ *   ├── ReliableChannelService (real-time messaging)
+ *   └── StoreService (historical data)
  */
 
 import { WakuService } from "./WakuService";
-import { LightPushService } from "./protocols/LightPushService";
+import { ReliableChannelService } from "./protocols/ReliableChannelService";
 import { StoreService } from "./protocols/StoreService";
-import { FilterService } from "./protocols/FilterService";
 import type {
   PollCallback,
   VoteCallback,
   ErrorCallback,
-} from "./protocols/LightPushService";
+} from "./protocols/ReliableChannelService";
 import type { IPollData, IVoteData } from "./ProtobufSchemas";
 
 // Re-export types for convenience
@@ -37,9 +34,8 @@ export class DataService {
   private wakuService: WakuService;
 
   // Protocol-specific services
-  public readonly lightPush: LightPushService;
+  public readonly reliableChannel: ReliableChannelService;
   public readonly store: StoreService;
-  public readonly filter: FilterService;
 
   /**
    * Create a new DataService instance
@@ -49,31 +45,30 @@ export class DataService {
     this.wakuService = wakuService;
 
     // Initialize protocol services
-    this.lightPush = new LightPushService(wakuService);
+    this.reliableChannel = new ReliableChannelService(wakuService);
     this.store = new StoreService(wakuService);
-    this.filter = new FilterService(wakuService);
 
     console.log("📡 DataService orchestrator initialized");
   }
 
-  // ==================== PUBLISHING (Light Push) ====================
+  // ==================== PUBLISHING (ReliableChannel) ====================
 
   /**
-   * Publish a new poll using Light Push protocol
+   * Publish a new poll using ReliableChannel
    * @param pollData - The poll data to publish
    * @returns The published poll data
    */
   async publishPoll(pollData: IPollData): Promise<IPollData> {
-    return this.lightPush.publishPoll(pollData);
+    return this.reliableChannel.publishPoll(pollData);
   }
 
   /**
-   * Publish a new vote using Light Push protocol
+   * Publish a new vote using ReliableChannel
    * @param voteData - The vote data to publish
    * @returns The published vote data
    */
   async publishVote(voteData: IVoteData): Promise<IVoteData> {
-    return this.lightPush.publishVote(voteData);
+    return this.reliableChannel.publishVote(voteData);
   }
 
   // ==================== HISTORICAL DATA (Store) ====================
@@ -105,10 +100,10 @@ export class DataService {
     return this.store.loadAllHistoricalData();
   }
 
-  // ==================== SUBSCRIPTIONS (Filter) ====================
+  // ==================== SUBSCRIPTIONS (ReliableChannel) ====================
 
   /**
-   * Subscribe to new polls using ReliableChannel (Scala pattern)
+   * Subscribe to new polls using ReliableChannel
    * @param onPoll - Callback function for new polls
    * @param onError - Optional error callback
    */
@@ -116,11 +111,11 @@ export class DataService {
     onPoll: PollCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    return this.lightPush.subscribeToPolls(onPoll, onError);
+    return this.reliableChannel.subscribeToPolls(onPoll, onError);
   }
 
   /**
-   * Subscribe to new votes using ReliableChannel (Scala pattern)
+   * Subscribe to new votes using ReliableChannel
    * @param onVote - Callback function for new votes
    * @param onError - Optional error callback
    */
@@ -128,11 +123,11 @@ export class DataService {
     onVote: VoteCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    return this.lightPush.subscribeToVotes(onVote, onError);
+    return this.reliableChannel.subscribeToVotes(onVote, onError);
   }
 
   /**
-   * Subscribe to both polls and votes at once using ReliableChannel (Scala pattern)
+   * Subscribe to both polls and votes at once using ReliableChannel
    * @param onPoll - Callback function for new polls
    * @param onVote - Callback function for new votes
    * @param onError - Optional error callback
@@ -142,30 +137,30 @@ export class DataService {
     onVote: VoteCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    await this.lightPush.subscribeToPolls(onPoll, onError);
-    await this.lightPush.subscribeToVotes(onVote, onError);
+    await this.reliableChannel.subscribeToPolls(onPoll, onError);
+    await this.reliableChannel.subscribeToVotes(onVote, onError);
   }
 
   /**
    * Unsubscribe from poll updates
    */
   async unsubscribeFromPolls(): Promise<void> {
-    return this.lightPush.unsubscribeFromPolls();
+    return this.reliableChannel.unsubscribeFromPolls();
   }
 
   /**
    * Unsubscribe from vote updates
    */
   async unsubscribeFromVotes(): Promise<void> {
-    return this.lightPush.unsubscribeFromVotes();
+    return this.reliableChannel.unsubscribeFromVotes();
   }
 
   /**
    * Unsubscribe from all topics
    */
   async unsubscribeFromAll(): Promise<void> {
-    await this.lightPush.unsubscribeFromPolls();
-    await this.lightPush.unsubscribeFromVotes();
+    await this.reliableChannel.unsubscribeFromPolls();
+    await this.reliableChannel.unsubscribeFromVotes();
   }
 
   // ==================== UTILITY METHODS ====================
@@ -174,7 +169,7 @@ export class DataService {
    * Check if any ReliableChannel subscriptions are active
    */
   hasActiveSubscriptions(): boolean {
-    return this.lightPush.hasActiveSubscriptions();
+    return this.reliableChannel.hasActiveSubscriptions();
   }
 
   /**
@@ -189,8 +184,8 @@ export class DataService {
    */
   async cleanup(): Promise<void> {
     console.log("🧹 Cleaning up DataService...");
-    await this.lightPush.unsubscribeFromPolls();
-    await this.lightPush.unsubscribeFromVotes();
+    await this.reliableChannel.unsubscribeFromPolls();
+    await this.reliableChannel.unsubscribeFromVotes();
     console.log("✅ DataService cleanup complete");
   }
 }

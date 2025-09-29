@@ -1,11 +1,12 @@
 /**
- * LightPushService - ReliableChannel implementation following Scala's exact pattern
+ * ReliableChannelService - Waku ReliableChannel implementation for real-time messaging
  *
- * This implementation replicates Scala's successful ReliableChannel architecture:
- * - Dynamic content topics per channel
- * - Direct event.detail handling
- * - Simple message processing with senderId filtering
- * - Node-based encoder/decoder creation
+ * This service handles all real-time messaging for the polling app using Waku's ReliableChannel:
+ * - Real-time poll and vote publishing
+ * - Real-time poll and vote subscriptions
+ * - Dynamic content topics per message type
+ * - Store protocol error handling
+ * - Message buffering for timing issues
  */
 
 import { ReliableChannel } from "@waku/sdk";
@@ -31,9 +32,9 @@ interface PollChannel {
 }
 
 /**
- * LightPushService following Scala's ReliableChannel pattern
+ * ReliableChannelService - Manages real-time messaging using Waku ReliableChannel
  */
-export class LightPushService {
+export class ReliableChannelService {
   private wakuService: WakuService;
   private channels: Map<string, PollChannel> = new Map();
   private senderId: string;
@@ -43,7 +44,7 @@ export class LightPushService {
   private voteCallback: VoteCallback | null = null;
   private errorCallback: ErrorCallback | null = null;
 
-  // Message buffers for early messages (like Scala's processedMessageIds pattern)
+  // Message buffers for early messages
   private pendingPolls: IPollData[] = [];
   private pendingVotes: IVoteData[] = [];
 
@@ -54,7 +55,7 @@ export class LightPushService {
     // Initialize channels when Waku is ready
     this.initializeChannels();
 
-    console.log("📤 LightPushService initialized with Scala pattern");
+    console.log("📤 ReliableChannelService initialized");
   }
 
   private generateSenderId(): string {
@@ -76,13 +77,13 @@ export class LightPushService {
         return;
       }
 
-      console.log("🔄 Creating channels using Scala pattern...");
+      console.log("🔄 Creating ReliableChannel channels...");
 
-      // Create channels for polls and votes like Scala does for calendars
+      // Create channels for polls and votes
       await this.addChannel("polls");
       await this.addChannel("votes");
 
-      console.log("✅ Channels initialized successfully using Scala pattern");
+      console.log("✅ ReliableChannel channels initialized successfully");
 
     } catch (error) {
       console.error("❌ Failed to initialize channels:", error);
@@ -91,7 +92,7 @@ export class LightPushService {
   }
 
   /**
-   * Add a channel for a specific message type (following Scala's addCalendarChannel pattern)
+   * Add a channel for a specific message type
    */
   public async addChannel(channelId: string): Promise<boolean> {
     const node = this.wakuService.getNode();
@@ -108,10 +109,10 @@ export class LightPushService {
     try {
       console.log(`Adding channel for: ${channelId}`);
 
-      // Create dynamic content topic following Scala's pattern
+      // Create dynamic content topic for message type
       const contentTopic = `/polling-app/1/${channelId}/messages`;
 
-      // Create encoder and decoder using node methods (Scala pattern)
+      // Create encoder and decoder using node methods (ReliableChannel)
       const encoder = node.createEncoder({ contentTopic });
       const decoder = node.createDecoder({ contentTopic });
 
@@ -127,12 +128,12 @@ export class LightPushService {
       // Patch the reliableChannel to suppress Store errors
       this.patchReliableChannelForStoreErrors(reliableChannel);
 
-      // Listen for incoming messages (Scala pattern)
+      // Listen for incoming messages (ReliableChannel)
       reliableChannel.addEventListener("message-received", (event: any) => {
         this.handleIncomingMessage(event.detail, channelId);
       });
 
-      // Setup other event listeners like Scala
+      // Setup other event listeners for ReliableChannel
       this.setupChannelEventListeners(reliableChannel, channelId);
 
       // Store the channel
@@ -213,8 +214,7 @@ export class LightPushService {
   }
 
   /**
-   * Setup channel event listeners following Scala's pattern
-   */
+   * Setup channel event listeners for ReliableChannel   */
   private setupChannelEventListeners(reliableChannel: any, channelId: string) {
     reliableChannel.addEventListener("sending-message-irrecoverable-error", (event: any) => {
       console.error(`Failed to send message for channel ${channelId}:`, event.detail.error);
@@ -256,19 +256,18 @@ export class LightPushService {
   }
 
   /**
-   * Handle incoming messages following Scala's exact pattern
-   */
+   * Handle incoming messages for ReliableChannel exact   */
   private handleIncomingMessage(wakuMessage: any, channelId: string) {
     try {
       console.log(`📥 Processing incoming Waku message for channel ${channelId}:`, wakuMessage);
 
       // Determine message type based on channel
       if (channelId === "polls") {
-        // Decode poll data directly from wakuMessage.payload (Scala pattern)
+        // Decode poll data directly from wakuMessage.payload (ReliableChannel)
         const pollData = decodePollData(wakuMessage.payload);
         console.log("📥 Successfully decoded poll data:", pollData);
 
-        // Skip our own messages (like Scala does - lines 264-268)
+        // Skip our own messages (for ReliableChannel does - lines 264-268)
         // Note: For polls, we could add a senderId field to poll data structure
         // For now, we'll process all polls and let UI handle duplicates
 
@@ -277,16 +276,16 @@ export class LightPushService {
           this.pollCallback(pollData);
         } else {
           console.warn("📥 No poll callback set! Buffering poll:", pollData.id);
-          // Buffer the poll for when callback is registered (like Scala's pattern)
+          // Buffer the poll for when callback is registered (for message buffering pattern)
           this.pendingPolls.push(pollData);
         }
 
       } else if (channelId === "votes") {
-        // Decode vote data directly from wakuMessage.payload (Scala pattern)
+        // Decode vote data directly from wakuMessage.payload (ReliableChannel)
         const voteData = decodeVoteData(wakuMessage.payload);
         console.log("📥 Successfully decoded vote data:", voteData);
 
-        // Skip our own messages (like Scala does)
+        // Skip our own messages (for ReliableChannel does)
         // For votes, we could check voterPublicKey if it matches our identity
 
         if (this.voteCallback) {
@@ -294,7 +293,7 @@ export class LightPushService {
           this.voteCallback(voteData);
         } else {
           console.warn("📥 No vote callback set! Buffering vote for poll:", voteData.pollId);
-          // Buffer the vote for when callback is registered (like Scala's pattern)
+          // Buffer the vote for when callback is registered (for message buffering pattern)
           this.pendingVotes.push(voteData);
         }
       }
@@ -308,7 +307,7 @@ export class LightPushService {
   // ==================== PUBLISHING ====================
 
   /**
-   * Publish a poll using ReliableChannel (following Scala's sendEventAction pattern)
+   * Publish a poll using ReliableChannel (for ReliableChannel sendEventAction pattern)
    */
   async publishPoll(pollData: IPollData): Promise<IPollData> {
     if (!this.wakuService.isReady()) {
@@ -325,17 +324,17 @@ export class LightPushService {
     }
 
     try {
-      console.log(`🔍 Publishing poll using Scala pattern:`, {
+      console.log(`🔍 Publishing poll using ReliableChannel:`, {
         nodeReady: this.wakuService.isReady(),
         hasChannel: !!channel,
         pollId: pollData.id,
         senderId: this.senderId
       });
 
-      // Encode poll data to bytes (like Scala's EventActionMessage.encode)
+      // Encode poll data to bytes (for message buffering EventActionMessage.encode)
       const payload = encodePollData(pollData);
 
-      // Send using ReliableChannel (like Scala's channel.reliableChannel.send)
+      // Send using ReliableChannel (for message buffering channel.reliableChannel.send)
       const messageId = channel.reliableChannel.send(payload);
 
       console.log('📤 ReliableChannel message sent:', { messageId, pollId: pollData.id });
@@ -350,7 +349,7 @@ export class LightPushService {
   }
 
   /**
-   * Publish a vote using ReliableChannel (following Scala's sendEventAction pattern)
+   * Publish a vote using ReliableChannel (for ReliableChannel sendEventAction pattern)
    */
   async publishVote(voteData: IVoteData): Promise<IVoteData> {
     if (!this.wakuService.isReady()) {
@@ -387,7 +386,7 @@ export class LightPushService {
   // ==================== SUBSCRIPTIONS ====================
 
   /**
-   * Subscribe to polls using ReliableChannel events (following Scala's setEventHandlers pattern)
+   * Subscribe to polls using ReliableChannel events (for ReliableChannel setEventHandlers pattern)
    */
   async subscribeToPolls(
     onPoll: PollCallback,
@@ -398,7 +397,7 @@ export class LightPushService {
       this.errorCallback = onError;
     }
 
-    // Process any buffered polls (like Scala's message processing pattern)
+    // Process any buffered polls (for message buffering message processing pattern)
     if (this.pendingPolls.length > 0) {
       console.log(`📥 Processing ${this.pendingPolls.length} buffered polls...`);
       const bufferedPolls = [...this.pendingPolls];
@@ -410,11 +409,11 @@ export class LightPushService {
       });
     }
 
-    console.log("✅ Subscribed to polls via ReliableChannel (Scala pattern)");
+    console.log("✅ Subscribed to polls via ReliableChannel (ReliableChannel)");
   }
 
   /**
-   * Subscribe to votes using ReliableChannel events (following Scala's setEventHandlers pattern)
+   * Subscribe to votes using ReliableChannel events (for ReliableChannel setEventHandlers pattern)
    */
   async subscribeToVotes(
     onVote: VoteCallback,
@@ -425,7 +424,7 @@ export class LightPushService {
       this.errorCallback = onError;
     }
 
-    // Process any buffered votes (like Scala's message processing pattern)
+    // Process any buffered votes (for message buffering message processing pattern)
     if (this.pendingVotes.length > 0) {
       console.log(`📥 Processing ${this.pendingVotes.length} buffered votes...`);
       const bufferedVotes = [...this.pendingVotes];
@@ -437,7 +436,7 @@ export class LightPushService {
       });
     }
 
-    console.log("✅ Subscribed to votes via ReliableChannel (Scala pattern)");
+    console.log("✅ Subscribed to votes via ReliableChannel (ReliableChannel)");
   }
 
   /**
@@ -511,25 +510,25 @@ export class LightPushService {
   }
 
   /**
-   * Get sender ID (like Scala's getSenderId)
+   * Get sender ID (for message buffering getSenderId)
    */
   getSenderId(): string {
     return this.senderId;
   }
 
   /**
-   * Get channel count (like Scala's getChannelCount)
+   * Get channel count (for message buffering getChannelCount)
    */
   getChannelCount(): number {
     return this.channels.size;
   }
 
   /**
-   * Get channel IDs (like Scala's getChannelIds)
+   * Get channel IDs (for message buffering getChannelIds)
    */
   getChannelIds(): string[] {
     return Array.from(this.channels.keys());
   }
 }
 
-export default LightPushService;
+export default ReliableChannelService;
