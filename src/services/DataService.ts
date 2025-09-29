@@ -24,7 +24,7 @@ import type {
   PollCallback,
   VoteCallback,
   ErrorCallback,
-} from "./protocols/FilterService";
+} from "./protocols/LightPushService";
 import type { IPollData, IVoteData } from "./ProtobufSchemas";
 
 // Re-export types for convenience
@@ -108,7 +108,7 @@ export class DataService {
   // ==================== SUBSCRIPTIONS (Filter) ====================
 
   /**
-   * Subscribe to new polls using Filter protocol
+   * Subscribe to new polls using ReliableChannel (Scala pattern)
    * @param onPoll - Callback function for new polls
    * @param onError - Optional error callback
    */
@@ -116,11 +116,11 @@ export class DataService {
     onPoll: PollCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    return this.filter.subscribeToPolls(onPoll, onError);
+    return this.lightPush.subscribeToPolls(onPoll, onError);
   }
 
   /**
-   * Subscribe to new votes using Filter protocol
+   * Subscribe to new votes using ReliableChannel (Scala pattern)
    * @param onVote - Callback function for new votes
    * @param onError - Optional error callback
    */
@@ -128,11 +128,11 @@ export class DataService {
     onVote: VoteCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    return this.filter.subscribeToVotes(onVote, onError);
+    return this.lightPush.subscribeToVotes(onVote, onError);
   }
 
   /**
-   * Subscribe to both polls and votes at once
+   * Subscribe to both polls and votes at once using ReliableChannel (Scala pattern)
    * @param onPoll - Callback function for new polls
    * @param onVote - Callback function for new votes
    * @param onError - Optional error callback
@@ -142,37 +142,39 @@ export class DataService {
     onVote: VoteCallback,
     onError?: ErrorCallback
   ): Promise<void> {
-    return this.filter.subscribeToAll(onPoll, onVote, onError);
+    await this.lightPush.subscribeToPolls(onPoll, onError);
+    await this.lightPush.subscribeToVotes(onVote, onError);
   }
 
   /**
    * Unsubscribe from poll updates
    */
   async unsubscribeFromPolls(): Promise<void> {
-    return this.filter.unsubscribeFromPolls();
+    return this.lightPush.unsubscribeFromPolls();
   }
 
   /**
    * Unsubscribe from vote updates
    */
   async unsubscribeFromVotes(): Promise<void> {
-    return this.filter.unsubscribeFromVotes();
+    return this.lightPush.unsubscribeFromVotes();
   }
 
   /**
    * Unsubscribe from all topics
    */
   async unsubscribeFromAll(): Promise<void> {
-    return this.filter.unsubscribeFromAll();
+    await this.lightPush.unsubscribeFromPolls();
+    await this.lightPush.unsubscribeFromVotes();
   }
 
   // ==================== UTILITY METHODS ====================
 
   /**
-   * Check if any Filter subscriptions are active
+   * Check if any ReliableChannel subscriptions are active
    */
   hasActiveSubscriptions(): boolean {
-    return this.filter.hasActiveSubscriptions();
+    return this.lightPush.hasActiveSubscriptions();
   }
 
   /**
@@ -187,7 +189,8 @@ export class DataService {
    */
   async cleanup(): Promise<void> {
     console.log("🧹 Cleaning up DataService...");
-    await this.filter.cleanup();
+    await this.lightPush.unsubscribeFromPolls();
+    await this.lightPush.unsubscribeFromVotes();
     console.log("✅ DataService cleanup complete");
   }
 }

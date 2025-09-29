@@ -141,8 +141,9 @@ export class StoreService {
       console.log(`✅ Loaded ${polls.length} historical polls`);
       return polls;
     } catch (error) {
-      console.error("❌ Failed to load historical polls:", error);
-      throw error;
+      console.warn("⚠️ Failed to load historical polls (Store protocol unavailable):", error);
+      // Return empty array instead of throwing - polling will work via ReliableChannel
+      return [];
     }
   }
 
@@ -188,8 +189,9 @@ export class StoreService {
       console.log(`✅ Loaded ${votes.length} historical votes`);
       return votes;
     } catch (error) {
-      console.error("❌ Failed to load historical votes:", error);
-      throw error;
+      console.warn("⚠️ Failed to load historical votes (Store protocol unavailable):", error);
+      // Return empty array instead of throwing - voting will work via ReliableChannel
+      return [];
     }
   }
 
@@ -201,17 +203,14 @@ export class StoreService {
     polls: IPollData[];
     votes: IVoteData[];
   }> {
-    try {
-      const [polls, votes] = await Promise.all([
-        this.loadHistoricalPolls(),
-        this.loadHistoricalVotes(),
-      ]);
+    // Since loadHistoricalPolls and loadHistoricalVotes now return empty arrays
+    // instead of throwing, this should always succeed
+    const [polls, votes] = await Promise.all([
+      this.loadHistoricalPolls(),
+      this.loadHistoricalVotes(),
+    ]);
 
-      return { polls, votes };
-    } catch (error) {
-      console.error("❌ Failed to load historical data:", error);
-      throw error;
-    }
+    return { polls, votes };
   }
 
   /**
