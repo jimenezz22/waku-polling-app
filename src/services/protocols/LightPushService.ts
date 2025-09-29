@@ -11,7 +11,7 @@
  * full-time connections to the network.
  */
 
-import { createEncoder } from "@waku/sdk";
+import { createEncoder, ReliableChannel } from "@waku/sdk";
 import type { IEncoder } from "@waku/sdk";
 import {
   encodePollData,
@@ -28,6 +28,9 @@ export class LightPushService {
   private wakuService: WakuService;
   private pollEncoder: IEncoder;
   private voteEncoder: IEncoder;
+  private pollChannel: any = null;
+  private voteChannel: any = null;
+  private senderId: string;
 
   /**
    * Create a new LightPushService instance
@@ -35,25 +38,91 @@ export class LightPushService {
    */
   constructor(wakuService: WakuService) {
     this.wakuService = wakuService;
+    this.senderId = this.generateSenderId();
 
     // Initialize encoders for both content topics
+    // Using default routing info compatible with bootstrap network
     const routingInfo = {
-      pubsubTopic: "/waku/2/default-waku/proto",
-      clusterId: 0,
-      shardId: 0,
+      pubsubTopic: "/waku/2/default-waku/proto",  // Default pubsub topic
+      clusterId: 1,     // Default cluster
+      shardId: 0        // Default shard
     };
 
     this.pollEncoder = createEncoder({
       contentTopic: WakuService.CONTENT_TOPICS.POLLS,
+      ephemeral: true,  // Like the boilerplate projects
       routingInfo,
     });
 
     this.voteEncoder = createEncoder({
       contentTopic: WakuService.CONTENT_TOPICS.VOTES,
+      ephemeral: true,  // Like the boilerplate projects
       routingInfo,
     });
 
+    // Initialize ReliableChannels once Waku is ready
+    this.initializeReliableChannels();
+
     console.log("📤 LightPushService initialized");
+  }
+
+  private generateSenderId(): string {
+    return `decenvote-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  private async initializeReliableChannels(): Promise<void> {
+    // Wait for Waku to be initialized before creating ReliableChannels
+    if (!this.wakuService.checkIsInitialized()) {
+      console.log("⏳ Waiting for Waku to be initialized...");
+      // Try again in 1 second
+      setTimeout(() => this.initializeReliableChannels(), 1000);
+      return;
+    }
+
+    try {
+      const node = this.wakuService.getNode();
+      if (!node) {
+        console.warn("❌ No Waku node available for ReliableChannels");
+        return;
+      }
+
+      console.log("🔄 Creating ReliableChannels...");
+
+      // Create decoder for polls
+      const pollDecoder = node.createDecoder({
+        contentTopic: WakuService.CONTENT_TOPICS.POLLS,
+      });
+
+      // Create decoder for votes
+      const voteDecoder = node.createDecoder({
+        contentTopic: WakuService.CONTENT_TOPICS.VOTES,
+      });
+
+      // Create ReliableChannel for polls
+      this.pollChannel = await ReliableChannel.create(
+        node,
+        "decenvote-polls",
+        this.senderId,
+        this.pollEncoder,
+        pollDecoder
+      );
+
+      // Create ReliableChannel for votes
+      this.voteChannel = await ReliableChannel.create(
+        node,
+        "decenvote-votes",
+        this.senderId,
+        this.voteEncoder,
+        voteDecoder
+      );
+
+      console.log("✅ ReliableChannels initialized successfully");
+
+    } catch (error) {
+      console.error("❌ Failed to initialize ReliableChannels:", error);
+      // Retry in 5 seconds
+      setTimeout(() => this.initializeReliableChannels(), 5000);
+    }
   }
 
   // ==================== VALIDATION ====================
@@ -105,16 +174,18 @@ export class LightPushService {
   // ==================== PUBLISHING ====================
 
   /**
-   * Publish a new poll using Light Push protocol
+   * Publish a new poll using ReliableChannel
    * @param pollData - The poll data to publish
    * @returns The published poll data
    * @throws Error if node is not ready or publishing fails
    */
   async publishPoll(pollData: IPollData): Promise<IPollData> {
-    const node = this.wakuService.getNode();
-
-    if (!node || !this.wakuService.isReady()) {
+    if (!this.wakuService.isReady()) {
       throw new Error("Waku node is not ready");
+    }
+
+    if (!this.pollChannel) {
+      throw new Error("Poll ReliableChannel is not initialized");
     }
 
     // Validate poll data
@@ -126,79 +197,42 @@ export class LightPushService {
       // Debug: Check node state before sending
       console.log(`🔍 Pre-send debug:`, {
         nodeReady: this.wakuService.isReady(),
-        hasNode: !!node,
-        hasLightPush: !!node.lightPush,
-        pollId: pollData.id
+        hasReliableChannel: !!this.pollChannel,
+        pollId: pollData.id,
+        senderId: this.senderId
       });
 
       // Encode poll data to bytes
       const payload = encodePollData(pollData);
 
-      // Send using Light Push protocol
-      const result = await node.lightPush.send(this.pollEncoder, {
-        payload,
-      });
+      // Send using ReliableChannel (much more reliable than direct LightPush)
+      const messageId = this.pollChannel.send(payload);
 
-      // Check if message was sent successfully
-      console.log('📤 Light Push result:', result);
+      console.log('📤 ReliableChannel message sent:', { messageId, pollId: pollData.id });
 
-      // If no peers available, try to reconnect and retry
-      if (result.failures && result.failures.length > 0 && result.successes.length === 0) {
-        const failureReason = result.failures[0]?.error || 'Unknown error';
+      // ReliableChannel handles retransmission and peer management automatically
+      console.log(`✅ Poll published via ReliableChannel: ${pollData.id}`);
+      return pollData;
 
-        if (failureReason.includes('No peer available')) {
-          console.log('🔄 No peers available, attempting to reconnect...');
-
-          try {
-            // Wait for LightPush peers
-            await this.wakuService.waitForLightPushPeers();
-
-            // Retry sending
-            console.log('🔁 Retrying poll publication...');
-            const retryResult = await node.lightPush.send(this.pollEncoder, {
-              payload,
-            });
-
-            console.log('📤 Retry result:', retryResult);
-
-            if (retryResult.successes && retryResult.successes.length > 0) {
-              console.log(`✅ Poll published successfully on retry: ${pollData.id}`);
-              return pollData;
-            }
-          } catch (reconnectError) {
-            console.error('❌ Failed to reconnect to peers:', reconnectError);
-          }
-        }
-      }
-
-      if (result.successes && result.successes.length > 0) {
-        console.log(`✅ Poll published successfully: ${pollData.id}`);
-        return pollData;
-      } else if (result.recipients && result.recipients.length > 0) {
-        console.log(`✅ Poll published successfully: ${pollData.id}`);
-        return pollData;
-      } else {
-        throw new Error(
-          `Failed to publish poll: ${result.errors?.join(", ") || result.failures?.map((f: any) => f.error)?.join(", ") || "No recipients"}`
-        );
-      }
     } catch (error) {
-      console.error("❌ Failed to publish poll:", error);
-      throw error;
+      console.error("❌ Failed to publish poll via ReliableChannel:", error);
+      throw new Error(`Failed to publish poll: ${error}`);
     }
   }
 
   /**
-   * Publish a new vote using Light Push protocol
+   * Publish a new vote using ReliableChannel
    * @param voteData - The vote data to publish
    * @returns The published vote data
    * @throws Error if node is not ready or publishing fails
    */
   async publishVote(voteData: IVoteData): Promise<IVoteData> {
-    const node = this.wakuService.getNode();
-
-    if (!node || !this.wakuService.isReady()) {
+    if (!this.wakuService.isReady()) {
       throw new Error("Waku node is not ready");
+    }
+
+    if (!this.voteChannel) {
+      throw new Error("Vote ReliableChannel is not initialized");
     }
 
     // Validate vote data
@@ -210,55 +244,16 @@ export class LightPushService {
       // Encode vote data to bytes
       const payload = encodeVoteData(voteData);
 
-      // Send using Light Push protocol
-      const result = await node.lightPush.send(this.voteEncoder, {
-        payload,
-      });
+      // Send using ReliableChannel
+      const messageId = this.voteChannel.send(payload);
 
-      // Check if message was sent successfully
-      console.log('📤 Light Push vote result:', result);
+      console.log('📤 Vote sent via ReliableChannel:', { messageId, pollId: voteData.pollId });
+      console.log(`✅ Vote published via ReliableChannel for poll: ${voteData.pollId}`);
+      return voteData;
 
-      // If no peers available, try to reconnect and retry (same as polls)
-      if (result.failures && result.failures.length > 0 && result.successes.length === 0) {
-        const failureReason = result.failures[0]?.error || 'Unknown error';
-
-        if (failureReason.includes('No peer available')) {
-          console.log('🔄 No peers available for vote, attempting to reconnect...');
-
-          try {
-            await this.wakuService.waitForLightPushPeers();
-            console.log('🔁 Retrying vote publication...');
-
-            const retryResult = await node.lightPush.send(this.voteEncoder, {
-              payload,
-            });
-
-            console.log('📤 Vote retry result:', retryResult);
-
-            if (retryResult.successes && retryResult.successes.length > 0) {
-              console.log(`✅ Vote published successfully on retry: ${voteData.pollId}`);
-              return voteData;
-            }
-          } catch (reconnectError) {
-            console.error('❌ Failed to reconnect for vote:', reconnectError);
-          }
-        }
-      }
-
-      if (result.successes && result.successes.length > 0) {
-        console.log(`✅ Vote published successfully for poll: ${voteData.pollId}`);
-        return voteData;
-      } else if (result.recipients && result.recipients.length > 0) {
-        console.log(`✅ Vote published successfully for poll: ${voteData.pollId}`);
-        return voteData;
-      } else {
-        throw new Error(
-          `Failed to publish vote: ${result.errors?.join(", ") || result.failures?.map((f: any) => f.error)?.join(", ") || "No recipients"}`
-        );
-      }
     } catch (error) {
-      console.error("❌ Failed to publish vote:", error);
-      throw error;
+      console.error("❌ Failed to publish vote via ReliableChannel:", error);
+      throw new Error(`Failed to publish vote: ${error}`);
     }
   }
 

@@ -37,10 +37,11 @@ export class StoreService {
     this.wakuService = wakuService;
 
     // Initialize decoders for both content topics
+    // Using default routing info compatible with bootstrap network
     const routingInfo = {
-      pubsubTopic: "/waku/2/default-waku/proto",
-      clusterId: 0,
-      shardId: 0,
+      pubsubTopic: "/waku/2/default-waku/proto",  // Default pubsub topic
+      clusterId: 1,     // Default cluster
+      shardId: 0        // Default shard
     };
 
     this.pollDecoder = createDecoder(

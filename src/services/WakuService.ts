@@ -44,6 +44,13 @@ export class WakuService {
   }
 
   /**
+   * Get the Waku node instance
+   */
+  getNode(): any {
+    return this.node;
+  }
+
+  /**
    * Wait for LightPush peers with retries
    */
   async waitForLightPushPeers(): Promise<void> {
@@ -54,7 +61,6 @@ export class WakuService {
     console.log("🔄 Checking for LightPush peers...");
 
     let attempts = 3;
-    let lastError: any;
 
     while (attempts > 0) {
       try {
@@ -69,7 +75,6 @@ export class WakuService {
           return;
         }
       } catch (error) {
-        lastError = error;
         console.warn(`⚠️ Attempt ${4 - attempts}/3 failed:`, error);
       }
 
@@ -109,9 +114,13 @@ export class WakuService {
     try {
       console.log("🚀 Initializing Waku Light Node...");
 
-      // Create Light Node - keep using TEST network
+      // Try different approaches: RetroChat uses custom bootstrap + defaultBootstrap: true
+      const customBootstrap = '/dns4/waku.fryorcraken.xyz/tcp/8000/wss/p2p/16Uiu2HAmMRvhDHrtiHft1FTUYnn6cVA8AWVrTyLUayJJ3MWpUZDB';
+
+      // Create Light Node with both default bootstrap and custom bootstrap (like RetroChat)
       this.node = await createLightNode({
-        defaultBootstrap: true  // This uses Waku test network
+        defaultBootstrap: true,  // Use default bootstrap as fallback
+        bootstrapPeers: [customBootstrap]  // Add custom bootstrap peer
       });
 
       console.log("✅ Light Node created");
@@ -119,6 +128,9 @@ export class WakuService {
       // Start the node
       await this.node.start();
       console.log("✅ Waku node started");
+
+      // Let the node auto-discover peers (since we're using defaultBootstrap: true)
+      console.log("🔄 Letting node discover peers automatically...");
 
       // Wait for peers with proper protocol support
       console.log("⏳ Waiting for peers with required protocols...");
@@ -190,13 +202,6 @@ export class WakuService {
 
       throw new Error(`Waku initialization failed: ${errorMessage}`);
     }
-  }
-
-  /**
-   * Get the current Waku node instance
-   */
-  getNode(): any {
-    return this.node;
   }
 
   /**
