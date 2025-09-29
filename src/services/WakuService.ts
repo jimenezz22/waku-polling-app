@@ -9,6 +9,7 @@
  */
 
 import { createLightNode, waitForRemotePeer, Protocols } from "@waku/sdk";
+import { WakuConfig } from "./config/WakuConfig";
 
 export interface WakuStatus {
   connected: boolean;
@@ -29,11 +30,8 @@ export class WakuService {
     error: null
   };
 
-  // Content topics for DecenVote
-  public static readonly CONTENT_TOPICS = {
-    POLLS: "/decenvote/1/polls/proto",
-    VOTES: "/decenvote/1/votes/proto"
-  } as const;
+  // Content topics from config
+  public static readonly CONTENT_TOPICS = WakuConfig.CONTENT_TOPICS;
 
 
   /**
@@ -64,7 +62,7 @@ export class WakuService {
 
     while (attempts > 0) {
       try {
-        await waitForRemotePeer(this.node, [Protocols.LightPush], 15000);
+        await waitForRemotePeer(this.node, [Protocols.LightPush], WakuConfig.PROTOCOL_TIMEOUTS.lightPush);
 
         // Verify we actually have peers
         const connections = this.node.libp2p.getConnections();
@@ -82,7 +80,7 @@ export class WakuService {
 
       if (attempts > 0) {
         console.log("🔁 Retrying peer discovery...");
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, WakuConfig.NODE.reconnectDelay));
       }
     }
 
@@ -114,13 +112,10 @@ export class WakuService {
     try {
       console.log("🚀 Initializing Waku Light Node...");
 
-      // Try different approaches: RetroChat uses custom bootstrap + defaultBootstrap: true
-      const customBootstrap = '/dns4/waku.fryorcraken.xyz/tcp/8000/wss/p2p/16Uiu2HAmMRvhDHrtiHft1FTUYnn6cVA8AWVrTyLUayJJ3MWpUZDB';
-
-      // Create Light Node with both default bootstrap and custom bootstrap (like RetroChat)
+      // Create Light Node with configuration
       this.node = await createLightNode({
-        defaultBootstrap: true,  // Use default bootstrap as fallback
-        bootstrapPeers: [customBootstrap]  // Add custom bootstrap peer
+        defaultBootstrap: WakuConfig.NODE.defaultBootstrap,
+        bootstrapPeers: WakuConfig.NODE.bootstrapPeers
       });
 
       console.log("✅ Light Node created");
@@ -136,20 +131,19 @@ export class WakuService {
       console.log("⏳ Waiting for peers with required protocols...");
       try {
         // First, wait for LightPush specifically (needed for creating polls)
-        // Increased timeout for better peer discovery
-        await waitForRemotePeer(this.node, [Protocols.LightPush], 45000);
+        await waitForRemotePeer(this.node, [Protocols.LightPush], WakuConfig.NODE.connectionTimeout);
         console.log("✅ LightPush peer found");
 
         // Give peers time to stabilize
         console.log("⏳ Letting peers stabilize...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, WakuConfig.NODE.peerStabilizationDelay));
 
         // Then try to get Filter and Store (best effort)
         try {
           await waitForRemotePeer(this.node, [
             Protocols.Filter,     // For real-time updates
             Protocols.Store       // For loading historical data
-          ], 10000);
+          ], WakuConfig.PROTOCOL_TIMEOUTS.filter);
           console.log("✅ Connected to remote peers with all protocols");
         } catch (storeError) {
           console.warn("⚠️ Store/Filter peers not found, but LightPush is available");
@@ -309,7 +303,7 @@ export class WakuService {
       } catch (error) {
         console.warn("⚠️ Could not update peer count:", error);
       }
-    }, 10000); // Check every 10 seconds
+    }, WakuConfig.MONITORING.statusCheckInterval);
   }
 
   /**

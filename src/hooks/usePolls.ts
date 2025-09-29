@@ -51,7 +51,7 @@ export const usePolls = (dataService: DataService | null) => {
     try {
       console.log('🔄 Setting up poll subscription...');
       await dataService.subscribeToPolls(
-        (newPoll) => {
+        (newPoll: IPollData) => {
           console.log('📥 Received new poll via subscription:', newPoll.id);
           setPolls((prev) => {
             if (prev.some((p) => p.id === newPoll.id)) {
@@ -60,7 +60,7 @@ export const usePolls = (dataService: DataService | null) => {
             return [newPoll, ...prev].sort((a, b) => b.timestamp - a.timestamp);
           });
         },
-        (err) => {
+        (err: Error) => {
           console.error('Poll subscription error:', err);
           setError('Failed to subscribe to polls');
         }

@@ -49,7 +49,7 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
         // Subscribe to new votes
         console.log('🗳️ Setting up vote subscription...');
         await dataService.subscribeToVotes(
-          (newVote) => {
+          (newVote: IVoteData) => {
             console.log('🗳️ Received new vote via subscription:', newVote.pollId, 'option:', newVote.optionIndex);
             setVotes((prev) => {
               // Deduplicate votes
@@ -67,7 +67,7 @@ export const useVotes = (dataService: DataService | null, userPublicKey: string)
               return [...prev, newVote];
             });
           },
-          (err) => {
+          (err: Error) => {
             console.error('Vote subscription error:', err);
           }
         );

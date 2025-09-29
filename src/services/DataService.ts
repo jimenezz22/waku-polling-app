@@ -21,7 +21,7 @@ import type {
   PollCallback,
   VoteCallback,
   ErrorCallback,
-} from "./protocols/ReliableChannelService";
+} from "./channels/DataProcessor";
 import type { IPollData, IVoteData } from "./ProtobufSchemas";
 
 // Re-export types for convenience

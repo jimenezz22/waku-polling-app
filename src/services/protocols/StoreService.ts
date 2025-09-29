@@ -20,6 +20,8 @@ import {
   type IVoteData,
 } from "../ProtobufSchemas";
 import { WakuService } from "../WakuService";
+import { WakuConfig } from "../config/WakuConfig";
+import { DataValidator } from "../validators/DataValidator";
 
 /**
  * StoreService - Loads historical polls and votes using Store protocol
@@ -36,68 +38,76 @@ export class StoreService {
   constructor(wakuService: WakuService) {
     this.wakuService = wakuService;
 
-    // Initialize decoders for both content topics
-    // Using default routing info compatible with bootstrap network
+    // Initialize decoders using configuration
     const routingInfo = {
-      pubsubTopic: "/waku/2/default-waku/proto",  // Default pubsub topic
-      clusterId: 1,     // Default cluster
-      shardId: 0        // Default shard
+      pubsubTopic: WakuConfig.ROUTING.pubsubTopic,
+      clusterId: WakuConfig.ROUTING.clusterId,
+      shardId: WakuConfig.ROUTING.shardId
     };
 
     this.pollDecoder = createDecoder(
-      WakuService.CONTENT_TOPICS.POLLS,
+      WakuConfig.CONTENT_TOPICS.polls,
       routingInfo
     );
 
     this.voteDecoder = createDecoder(
-      WakuService.CONTENT_TOPICS.VOTES,
+      WakuConfig.CONTENT_TOPICS.votes,
       routingInfo
     );
 
     console.log("📥 StoreService initialized");
   }
 
-  // ==================== VALIDATION ====================
+
+  // ==================== GENERIC STORE QUERY ====================
 
   /**
-   * Validate poll data (simple null checks)
+   * Generic method to load historical data
    */
-  private validatePollData(poll: IPollData): boolean {
-    if (!poll.id || !poll.question || !poll.createdBy) {
-      return false;
+  private async loadHistoricalData<T>(
+    decoder: IDecoder<any>,
+    decodeFunction: (payload: Uint8Array) => T,
+    validateFunction: (data: T) => boolean,
+    dataType: string
+  ): Promise<T[]> {
+    const node = this.wakuService.getNode();
+
+    if (!node || !this.wakuService.isReady()) {
+      throw new Error("Waku node is not ready");
     }
 
-    if (!poll.options || poll.options.length < 2) {
-      return false;
-    }
+    const results: T[] = [];
 
-    if (!poll.timestamp) {
-      return false;
-    }
+    try {
+      console.log(`📥 Loading historical ${dataType} from Store...`);
 
-    return true;
+      await node.store.queryWithOrderedCallback(
+        [decoder],
+        (wakuMessage: any) => {
+          if (!wakuMessage.payload) {
+            return;
+          }
+
+          try {
+            const data = decodeFunction(wakuMessage.payload);
+            if (validateFunction(data)) {
+              results.push(data);
+            }
+          } catch (error) {
+            console.error(`❌ Failed to decode historical ${dataType}:`, error);
+          }
+        }
+      );
+
+      console.log(`✅ Loaded ${results.length} historical ${dataType}`);
+      return results;
+    } catch (error) {
+      console.warn(`⚠️ Failed to load historical ${dataType} (Store protocol unavailable):`, error);
+      return [];
+    }
   }
 
-  /**
-   * Validate vote data (simple null checks)
-   */
-  private validateVoteData(vote: IVoteData): boolean {
-    if (!vote.pollId || !vote.voterPublicKey) {
-      return false;
-    }
-
-    if (vote.optionIndex === null || vote.optionIndex === undefined) {
-      return false;
-    }
-
-    if (!vote.timestamp) {
-      return false;
-    }
-
-    return true;
-  }
-
-  // ==================== STORE QUERIES ====================
+  // ==================== PUBLIC METHODS ====================
 
   /**
    * Load historical polls using Store protocol
@@ -105,46 +115,12 @@ export class StoreService {
    * @throws Error if node is not ready or query fails
    */
   async loadHistoricalPolls(): Promise<IPollData[]> {
-    const node = this.wakuService.getNode();
-
-    if (!node || !this.wakuService.isReady()) {
-      throw new Error("Waku node is not ready");
-    }
-
-    const polls: IPollData[] = [];
-
-    try {
-      console.log("📥 Loading historical polls from Store...");
-
-      // Query Store protocol for historical messages
-      await node.store.queryWithOrderedCallback(
-        [this.pollDecoder],
-        (wakuMessage: any) => {
-          if (!wakuMessage.payload) {
-            return;
-          }
-
-          try {
-            // Decode poll data from message payload
-            const pollData = decodePollData(wakuMessage.payload);
-
-            // Validate before adding
-            if (this.validatePollData(pollData)) {
-              polls.push(pollData);
-            }
-          } catch (error) {
-            console.error("❌ Failed to decode historical poll:", error);
-          }
-        }
-      );
-
-      console.log(`✅ Loaded ${polls.length} historical polls`);
-      return polls;
-    } catch (error) {
-      console.warn("⚠️ Failed to load historical polls (Store protocol unavailable):", error);
-      // Return empty array instead of throwing - polling will work via ReliableChannel
-      return [];
-    }
+    return this.loadHistoricalData<IPollData>(
+      this.pollDecoder,
+      decodePollData,
+      DataValidator.validatePoll,
+      "polls"
+    );
   }
 
   /**
@@ -153,46 +129,12 @@ export class StoreService {
    * @throws Error if node is not ready or query fails
    */
   async loadHistoricalVotes(): Promise<IVoteData[]> {
-    const node = this.wakuService.getNode();
-
-    if (!node || !this.wakuService.isReady()) {
-      throw new Error("Waku node is not ready");
-    }
-
-    const votes: IVoteData[] = [];
-
-    try {
-      console.log("📥 Loading historical votes from Store...");
-
-      // Query Store protocol for historical messages
-      await node.store.queryWithOrderedCallback(
-        [this.voteDecoder],
-        (wakuMessage: any) => {
-          if (!wakuMessage.payload) {
-            return;
-          }
-
-          try {
-            // Decode vote data from message payload
-            const voteData = decodeVoteData(wakuMessage.payload);
-
-            // Validate before adding
-            if (this.validateVoteData(voteData)) {
-              votes.push(voteData);
-            }
-          } catch (error) {
-            console.error("❌ Failed to decode historical vote:", error);
-          }
-        }
-      );
-
-      console.log(`✅ Loaded ${votes.length} historical votes`);
-      return votes;
-    } catch (error) {
-      console.warn("⚠️ Failed to load historical votes (Store protocol unavailable):", error);
-      // Return empty array instead of throwing - voting will work via ReliableChannel
-      return [];
-    }
+    return this.loadHistoricalData<IVoteData>(
+      this.voteDecoder,
+      decodeVoteData,
+      DataValidator.validateVote,
+      "votes"
+    );
   }
 
   /**
@@ -203,8 +145,6 @@ export class StoreService {
     polls: IPollData[];
     votes: IVoteData[];
   }> {
-    // Since loadHistoricalPolls and loadHistoricalVotes now return empty arrays
-    // instead of throwing, this should always succeed
     const [polls, votes] = await Promise.all([
       this.loadHistoricalPolls(),
       this.loadHistoricalVotes(),
