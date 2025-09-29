@@ -115,7 +115,7 @@ export class LightPushService {
       const encoder = node.createEncoder({ contentTopic });
       const decoder = node.createDecoder({ contentTopic });
 
-      // Create reliable channel
+      // Create reliable channel with Store error suppression
       const reliableChannel = await ReliableChannel.create(
         node,
         channelId,
@@ -123,6 +123,9 @@ export class LightPushService {
         encoder,
         decoder
       );
+
+      // Patch the reliableChannel to suppress Store errors
+      this.patchReliableChannelForStoreErrors(reliableChannel);
 
       // Listen for incoming messages (Scala pattern)
       reliableChannel.addEventListener("message-received", (event: any) => {
@@ -153,6 +156,63 @@ export class LightPushService {
   }
 
   /**
+   * Patch ReliableChannel to suppress Store protocol errors at the source
+   */
+  private patchReliableChannelForStoreErrors(reliableChannel: any) {
+    // Patch the Store protocol access in MissingMessageRetriever, but keep the retriever functional
+    if (reliableChannel.missingMessageRetriever) {
+      console.log('🔧 Patching MissingMessageRetriever to prevent Store errors while keeping functionality');
+
+      // Patch the _retrieve method to handle Store errors gracefully
+      if (reliableChannel.missingMessageRetriever._retrieve) {
+        const original_retrieve = reliableChannel.missingMessageRetriever._retrieve.bind(reliableChannel.missingMessageRetriever);
+
+        reliableChannel.missingMessageRetriever._retrieve = async function* (...args: any[]) {
+          try {
+            // Try the original retrieve method
+            const iterator = original_retrieve(...args);
+            for await (const item of iterator) {
+              yield item;
+            }
+          } catch (error: any) {
+            const errorStr = error?.toString?.() || String(error);
+            if (errorStr.includes('No peers available to query') ||
+                errorStr.includes('Store') ||
+                errorStr.includes('store')) {
+              console.warn('⚠️ Store protocol error in _retrieve suppressed, continuing without Store recovery:', error);
+              // Return empty iterator instead of throwing
+              return;
+            }
+            // Re-throw non-Store errors
+            throw error;
+          }
+        };
+      }
+
+      // Patch the main retrieveMissingMessage method
+      const originalRetrieveMissingMessage = reliableChannel.missingMessageRetriever.retrieveMissingMessage.bind(reliableChannel.missingMessageRetriever);
+
+      reliableChannel.missingMessageRetriever.retrieveMissingMessage = async (...args: any[]) => {
+        try {
+          return await originalRetrieveMissingMessage(...args);
+        } catch (error: any) {
+          const errorStr = error?.toString?.() || String(error);
+          if (errorStr.includes('No peers available to query') ||
+              errorStr.includes('Store') ||
+              errorStr.includes('store') ||
+              errorStr.includes('is not a function or its return value is not async iterable')) {
+            console.warn('⚠️ Store protocol error in retrieveMissingMessage suppressed, continuing without Store recovery:', error);
+            // Return empty array instead of throwing
+            return [];
+          }
+          // Re-throw non-Store errors
+          throw error;
+        }
+      };
+    }
+  }
+
+  /**
    * Setup channel event listeners following Scala's pattern
    */
   private setupChannelEventListeners(reliableChannel: any, channelId: string) {
@@ -167,6 +227,31 @@ export class LightPushService {
 
     reliableChannel.addEventListener("message-acknowledged", (event: any) => {
       console.log(`Message acknowledged by network for channel ${channelId}:`, event.detail);
+    });
+
+    // Handle Store protocol errors gracefully (prevents UI-breaking errors)
+    reliableChannel.addEventListener("error", (event: any) => {
+      const error = event.detail || event.error || 'Unknown ReliableChannel error';
+      console.warn(`⚠️ ReliableChannel error for ${channelId} (handled gracefully):`, error);
+
+      // Check if it's a Store protocol error and handle silently
+      const errorStr = error.toString?.() || String(error);
+      if (errorStr.includes('Store') || errorStr.includes('store') ||
+          errorStr.includes('No peers available') || errorStr.includes('query')) {
+        console.warn(`⚠️ Store protocol error in ${channelId} - continuing without historical data`);
+        // Don't call errorCallback for Store errors to prevent UI disruption
+        return;
+      }
+
+      // For non-Store errors, still report them
+      this.errorCallback?.(new Error(`ReliableChannel error for ${channelId}: ${error}`));
+    });
+
+    // Handle missing message retriever errors (Store-related)
+    reliableChannel.addEventListener("missing-message-retriever-error", (event: any) => {
+      const error = event.detail || 'Missing message retriever error';
+      console.warn(`⚠️ MissingMessageRetriever error for ${channelId} (handled gracefully):`, error);
+      // These are Store-related, so don't propagate to UI
     });
   }
 

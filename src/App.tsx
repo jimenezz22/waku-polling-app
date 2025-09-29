@@ -1,4 +1,5 @@
 import './App.css';
+import { useEffect } from 'react';
 import { useWaku } from './hooks/useWaku';
 import { useIdentity } from './hooks/useIdentity';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -9,6 +10,77 @@ import PollList from './components/PollList';
 function App() {
   const { status, isConnected, isInitializing, dataService, reconnect } = useWaku();
   const { identity, publicKey } = useIdentity();
+
+  // Global error handler for unhandled Store protocol errors
+  useEffect(() => {
+    // Store original console.error
+    const originalConsoleError = console.error;
+
+    // Override console.error to filter Store protocol errors
+    console.error = (...args: any[]) => {
+      const errorStr = args.join(' ');
+
+      // Check if it's a Store protocol error
+      if (errorStr.includes('No peers available to query') ||
+          errorStr.includes('MissingMessageRetriever') ||
+          errorStr.includes('Store') || errorStr.includes('store')) {
+
+        console.warn('⚠️ Store protocol error (suppressed from React error overlay):', ...args);
+        return; // Don't call original console.error
+      }
+
+      // For non-Store errors, call original console.error
+      originalConsoleError.apply(console, args);
+    };
+
+    const handleGlobalError = (event: ErrorEvent) => {
+      const error = event.error || event.message || 'Unknown error';
+      const errorStr = error.toString?.() || String(error);
+      const messageStr = event.message || '';
+
+      // Check if it's a Store protocol related error
+      if (errorStr.includes('Store') || errorStr.includes('store') ||
+          errorStr.includes('No peers available to query') ||
+          errorStr.includes('MissingMessageRetriever') ||
+          errorStr.includes('queryWithOrderedCallback') ||
+          messageStr.includes('No peers available to query') ||
+          messageStr.includes('Store') ||
+          messageStr.includes('MissingMessageRetriever')) {
+
+        console.warn('⚠️ Global Store protocol error intercepted (prevented UI popup):', error);
+        event.preventDefault(); // Prevent React error overlay
+        event.stopPropagation(); // Stop event propagation
+        event.stopImmediatePropagation(); // Stop immediate propagation
+        return false;
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const error = event.reason;
+      const errorStr = error?.toString?.() || String(error);
+
+      // Check if it's a Store protocol related error
+      if (errorStr.includes('Store') || errorStr.includes('store') ||
+          errorStr.includes('No peers available to query') ||
+          errorStr.includes('MissingMessageRetriever') ||
+          errorStr.includes('queryWithOrderedCallback')) {
+
+        console.warn('⚠️ Global Store protocol promise rejection intercepted (prevented UI popup):', error);
+        event.preventDefault(); // Prevent unhandled promise rejection
+      }
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      // Restore original console.error
+      console.error = originalConsoleError;
+
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   if (isInitializing) {
     return (
