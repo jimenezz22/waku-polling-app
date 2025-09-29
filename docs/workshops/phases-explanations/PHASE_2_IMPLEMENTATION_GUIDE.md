@@ -5,25 +5,29 @@
 Phase 2 establishes the fundamental foundation for the DecenVote application by implementing:
 - **WakuService**: Light Node connection and management
 - **IdentityService**: Cryptographic system for anonymous identities
+- **DataService**: Integration layer for data management
 - **App Component**: Integration and basic UI
 
-This phase prepares the necessary infrastructure for messaging protocols (Phase 3) and voting functionality (Phases 4-5).
+This phase prepares the necessary infrastructure for ReliableChannel protocols (Phase 3) and voting functionality (Phases 4-5).
 
 ---
 
 ## 🏗️ Implemented Waku Architecture
 
-### Decentralized P2P Network
+### Decentralized P2P Network with ReliableChannel
 ```
 [Your Light Node] ←→ [Full Node] ←→ [Other Light Nodes]
       ↕                ↕              ↕
-[Waku Protocols]   [History]    [P2P Exchange]
+[ReliableChannel]  [Store History] [Real-time Data]
+      ↕                ↕              ↕
+[Auto Buffering]   [Graceful Fallback] [Bidirectional]
 ```
 
 **Key Components:**
-- **Light Node**: Lightweight client that doesn't store complete history
-- **Full Node**: Complete node that maintains historical messages
-- **Protocols**: Light Push, Filter, Store for different functionalities
+- **Light Node**: Lightweight client using Waku SDK 0.0.35
+- **Full Node**: Complete node that maintains historical data via Store protocol
+- **ReliableChannel**: Bidirectional real-time communication with automatic buffering
+- **Store Protocol**: Historical data retrieval with graceful error handling
 
 ---
 
@@ -46,46 +50,64 @@ export class WakuService {
 }
 ```
 
-#### Predefined Content Topics
+#### Centralized Configuration via WakuConfig
 
 ```typescript
-public static readonly CONTENT_TOPICS = {
-  POLLS: "/decenvote/1/polls/proto",
-  VOTES: "/decenvote/1/votes/proto"
-} as const;
+// Uses centralized WakuConfig for all settings
+import { WakuConfig } from '../config/WakuConfig';
+
+// Node configuration
+const nodeConfig = WakuConfig.NODE;
+// Content topics
+const contentTopics = WakuConfig.CONTENT_TOPICS;
+// Channel topics for ReliableChannel
+const channelTopics = WakuConfig.CHANNEL_TOPICS;
 ```
 
-**Why these topics?**
-- `/decenvote/1/polls/proto`: Channel for poll creation messages
-- `/decenvote/1/votes/proto`: Channel for vote submission messages
-- Structure: `/{app-name}/{version}/{message-type}/{encoding}`
+**Centralized Configuration Benefits:**
+- **Single source of truth**: All Waku settings in one place
+- **Easy modification**: Change settings without code changes
+- **Type safety**: Strongly typed configuration interfaces
+- **Validation**: Built-in configuration validation methods
 
-#### Light Node Initialization
+#### Light Node Initialization with Waku SDK 0.0.35
 
 ```typescript
-async initialize(): Promise<any> {
-  // 1. Create Light Node with automatic bootstrap
-  this.node = await createLightNode({
-    defaultBootstrap: true
-  });
+async initialize(): Promise<LightNode> {
+  try {
+    // 1. Create Light Node with centralized config
+    this.node = await createLightNode({
+      defaultBootstrap: WakuConfig.NODE.defaultBootstrap,
+      bootstrapPeers: WakuConfig.NODE.bootstrapPeers
+    });
 
-  // 2. Start the node
-  await this.node.start();
+    // 2. Start the node with timeout
+    await this.node.start();
+    console.log('✅ Waku Light Node started');
 
-  // 3. Wait for peer connections
-  await new Promise(resolve => setTimeout(resolve, 3000));
+    // 3. Wait for peer stabilization
+    await new Promise(resolve =>
+      setTimeout(resolve, WakuConfig.NODE.peerStabilizationDelay)
+    );
 
-  // 4. Update status
-  this.status.connected = true;
+    // 4. Verify connections and update status
+    this.updateConnectionStatus();
+    this.startStatusMonitoring();
+
+    return this.node;
+  } catch (error) {
+    this.handleInitializationError(error as Error);
+    throw error;
+  }
 }
 ```
 
-**Step-by-step process:**
-1. **createLightNode**: Creates Waku node instance
-2. **defaultBootstrap**: Automatically connects to known nodes
-3. **start()**: Initializes libp2p and network protocols
-4. **Timeout**: Allows time for establishing connections
-5. **Status update**: Marks as connected for UI
+**Enhanced process with Waku SDK 0.0.35:**
+1. **Centralized config**: Uses WakuConfig for all settings
+2. **Error handling**: Proper error catching and handling
+3. **Timeout management**: Configurable peer stabilization delay
+4. **Status monitoring**: Automatic peer count monitoring
+5. **Type safety**: Strongly typed LightNode return
 
 #### Peer Monitoring
 
@@ -298,15 +320,16 @@ constructor() {
 
 ### What are the differences between WakuService implementations?
 
-**Final vs. Initial Implementation**:
+**Current vs. Legacy Implementation**:
 
-| Aspect | Initial Implementation | Final Implementation |
+| Aspect | Legacy Implementation | Current Implementation |
 |---------|----------------------|-------------------|
-| **Waku API** | `waitForRemotePeer()` (doesn't exist) | `createLightNode()` + timeout |
-| **Types** | Strict TypeScript | `any` for compatibility |
-| **Content Topics** | Not predefined | Defined for polls/votes |
-| **Error Handling** | Basic | Robust with try/catch |
-| **Monitoring** | Complex listeners | Simple polling every 10s |
+| **Waku SDK** | Old version with separate protocols | SDK 0.0.35 with ReliableChannel |
+| **Configuration** | Hardcoded settings | Centralized WakuConfig |
+| **Architecture** | Monolithic service | Modular with specialized services |
+| **Error Handling** | Basic try/catch | Graceful degradation patterns |
+| **Data Processing** | Direct processing | Automatic buffering via DataProcessor |
+| **Monitoring** | Simple status checks | Comprehensive metrics and health checks |
 
 ---
 
@@ -318,22 +341,28 @@ constructor() {
 graph TD
 A[App Component] --> B[IdentityService]
 A --> C[WakuService]
-B --> D[Load/Generate Identity]
-C --> E[Connect to Waku Network]
-D --> F[Identity Ready]
-E --> G[Waku Connected]
-F --> H[Update UI State]
-G --> H
+A --> D[DataService]
+B --> E[Load/Generate Identity]
+C --> F[Connect to Waku Network]
+D --> G[Initialize Data Layer]
+E --> H[Identity Ready]
+F --> I[Waku Connected]
+G --> J[Data Services Ready]
+H --> K[Update UI State]
+I --> K
+J --> K
 ```
 
 ### Preparation for Phase 3
 
 The implemented services prepare:
 
-1. **WakuService.CONTENT_TOPICS**: Topics ready for protocols
-2. **Identity.publicKeyHex**: Identifier for votes
-3. **Light Node**: Connection ready for Light Push/Filter/Store
-4. **UI State**: Connectivity indicators working
+1. **WakuConfig.CONTENT_TOPICS**: Centralized topic configuration
+2. **WakuConfig.CHANNEL_TOPICS**: ReliableChannel topic configuration
+3. **Identity.publicKeyHex**: Cryptographic identifier for data attribution
+4. **Light Node**: Connection ready for ReliableChannel and Store protocols
+5. **DataService**: Foundation for data management and validation
+6. **UI State**: Real-time connectivity and status indicators
 
 ---
 
@@ -369,17 +398,18 @@ The implemented services prepare:
 
 Phase 2 leaves everything ready to implement:
 
-### Message Protocols Setup (Phase 3)
-- **Light Push**: Publish polls and votes using `WakuService.getNode()`
-- **Filter Protocol**: Subscribe to topics using `CONTENT_TOPICS`
-- **Store Protocol**: Retrieve history of polls/votes
-- **Protobuf schemas**: Message serialization for polls/votes
+### ReliableChannel Protocols Setup (Phase 3)
+- **ReliableChannelService**: Bidirectional communication with automatic buffering
+- **DataProcessor**: Intelligent data processing and buffering
+- **StoreService**: Historical data retrieval with graceful error handling
+- **Data validation**: Centralized validation via DataValidator
 
-### Available data:
-- **Waku Node**: `wakuService.getNode()` ready for protocols
-- **Identity**: `identity.publicKeyHex` to sign votes
-- **Topics**: `WakuService.CONTENT_TOPICS` predefined
-- **State**: `wakuStatus.connected` to validate operations
+### Available infrastructure:
+- **Waku Node**: `wakuService.getNode()` ready for ReliableChannel
+- **Identity**: `identity.publicKeyHex` for data attribution
+- **Configuration**: `WakuConfig` centralized settings
+- **Validation**: `DataValidator` for data integrity
+- **Error handling**: Graceful degradation patterns
 
 The implementation is **completely prepared** to proceed with messaging protocols and begin exchanging polls and votes on the decentralized Waku network.
 
