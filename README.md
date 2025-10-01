@@ -144,7 +144,11 @@ message VoteData {
 
 ## 🎯 Template Usage
 
-This codebase serves as a production-ready template for building decentralized applications with Waku. Key patterns include:
+This codebase serves as a production-ready template for building decentralized applications with Waku.
+
+**To build this template from scratch**, follow the step-by-step guide in [`docs/workshops/INITIAL_PROMPT.md`](docs/workshops/INITIAL_PROMPT.md).
+
+Key patterns include:
 
 1. **Service Layer Architecture**: Clean separation between UI and protocol logic
 2. **Hook-based State Management**: React hooks for component-level state
@@ -152,15 +156,6 @@ This codebase serves as a production-ready template for building decentralized a
 4. **TypeScript Integration**: Full type safety across the application
 5. **Protocol Abstraction**: Easy-to-use APIs hiding Waku complexity
 
-## 🤝 Contributing
+---
 
-When extending this template:
-1. Follow the established service architecture
-2. Add comprehensive error handling
-3. Include TypeScript types for all new interfaces
-4. Test both connected and offline scenarios
-5. Document any new Waku protocol integrations
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
+⭐ **If you found this template helpful, please give us a star!** It helps others discover this project and motivates us to keep improving it.
