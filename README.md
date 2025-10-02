@@ -146,6 +146,8 @@ message VoteData {
 
 This codebase serves as a production-ready template for building decentralized applications with Waku.
 
+**To understand how this template was built**, read the detailed blog post: [`docs/BLOG_POST.md`](docs/BLOG_POST.md) - A phase-by-phase journey explaining the Waku integration process.
+
 **To build this template from scratch**, follow the step-by-step guide in [`docs/workshops/INITIAL_PROMPT.md`](docs/workshops/INITIAL_PROMPT.md).
 
 Key patterns include:
